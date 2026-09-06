@@ -59,6 +59,8 @@ object SearchResultBuilder {
         val textIsSub: TextView? = itemView.findViewById(R.id.text_is_sub)
         val textFlag: TextView? = itemView.findViewById(R.id.text_flag)
         val rating: TextView? = itemView.findViewById(R.id.text_rating)
+        val year: TextView? = itemView.findViewById(R.id.text_year)
+        val genres: TextView? = itemView.findViewById(R.id.text_genres)
 
         val textQuality: TextView? = itemView.findViewById(R.id.text_quality)
         val shadow: View? = itemView.findViewById(R.id.title_shadow)
@@ -77,6 +79,8 @@ object SearchResultBuilder {
         textIsSub?.isVisible = false
         textFlag?.isVisible = false
         rating?.isVisible = false
+        year?.isVisible = false
+        genres?.isVisible = false
         episodeText?.isVisible = false
 
         val showSub = showCache[textIsDub?.context?.getString(R.string.show_sub_key)] ?: false
@@ -100,6 +104,20 @@ object SearchResultBuilder {
             if (showRating) {
                 rating?.text = ratingText
             }
+        }
+
+        // Year and genres live on the card itself, so home, search, discover and
+        // filmography posters all gain the overlay without per-screen work.
+        val yearText = card.year?.takeIf { it > 0 }?.toString()
+        year?.isVisible = !yearText.isNullOrBlank()
+        if (!yearText.isNullOrBlank()) {
+            year?.text = yearText
+        }
+        val genreText = card.genres?.filter { it.isNotBlank() }?.take(3)
+            ?.joinToString(" • ")?.takeIf { it.isNotBlank() }
+        genres?.isVisible = !genreText.isNullOrBlank()
+        if (!genreText.isNullOrBlank()) {
+            genres?.text = genreText
         }
 
         shadow?.isVisible = showTitle

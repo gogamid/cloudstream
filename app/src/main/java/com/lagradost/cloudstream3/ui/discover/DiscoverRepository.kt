@@ -45,10 +45,13 @@ internal class DiscoverRepository(
         @JsonProperty("total_pages") @SerialName("total_pages") val totalPages: Int = 0,
     )
 
+    private var genreNames: Map<Int, String> = emptyMap()
+
     suspend fun genres(type: DiscoverMediaType): List<TmdbGenre> =
         parseJson<GenresResponse>(
             request("/genre/${type.path}/list", mapOf("language" to "en-US"))
         ).genres.orEmpty().filter { it.id > 0 && it.name.isNotBlank() }.distinctBy { it.id }
+            .also { genreNames = genreNames + it.associate { genre -> genre.id to genre.name } }
 
     suspend fun discover(
         type: DiscoverMediaType,
@@ -90,7 +93,7 @@ internal class DiscoverRepository(
             results = response.results.orEmpty().asSequence()
                 .filter { it.usable }
                 .distinctBy { it.id }
-                .map { it.toSearchResponse(type.path) }
+                .map { it.toSearchResponse(type.path, genreNames) }
                 .filter { rating.matches(it.score) }
                 .toList(),
             hasMore = page < response.totalPages.coerceAtMost(500),

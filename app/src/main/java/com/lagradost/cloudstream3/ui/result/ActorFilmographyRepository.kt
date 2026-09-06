@@ -3,9 +3,14 @@ package com.lagradost.cloudstream3.ui.result
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.Actor
 import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.ui.discover.DiscoverMediaType
+import com.lagradost.cloudstream3.ui.discover.DiscoverRepository
 import com.lagradost.cloudstream3.ui.discover.TmdbMetadata
 import com.lagradost.cloudstream3.ui.discover.TmdbTitle
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -61,6 +66,14 @@ internal class ActorFilmographyRepository(
             request("/person/${person.id}/combined_credits", mapOf("language" to "en-US"))
         ).cast.orEmpty()
 
+        // Combined credits mix movies and series, so both catalogues are needed.
+        val genreRepo = DiscoverRepository(request)
+        val catalogue = coroutineScope {
+            val movies = async(Dispatchers.IO) { genreRepo.genres(DiscoverMediaType.MOVIES) }
+            val series = async(Dispatchers.IO) { genreRepo.genres(DiscoverMediaType.SERIES) }
+            (movies.await() + series.await()).associate { it.id to it.name }
+        }
+
         return credits.asSequence()
             .filter { it.mediaType == "movie" || it.mediaType == "tv" }
             .filter { it.usable }
@@ -69,7 +82,7 @@ internal class ActorFilmographyRepository(
                 compareByDescending<TmdbTitle> { it.popularity ?: 0.0 }
                     .thenByDescending { it.year ?: 0 }
             )
-            .map { it.toSearchResponse() }
+            .map { it.toSearchResponse(genreNames = catalogue) }
             .toList()
     }
 

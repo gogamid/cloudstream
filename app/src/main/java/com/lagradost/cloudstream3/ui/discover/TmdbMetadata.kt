@@ -61,6 +61,7 @@ internal data class TmdbTitle(
     @JsonProperty("media_type") @SerialName("media_type") val mediaType: String? = null,
     @JsonProperty("popularity") @SerialName("popularity") val popularity: Double? = null,
     @JsonProperty("adult") @SerialName("adult") val adult: Boolean? = null,
+    @JsonProperty("genre_ids") @SerialName("genre_ids") val genreIds: List<Int>? = null,
 ) {
     val displayTitle: String
         get() = listOf(title, name, originalTitle, originalName)
@@ -73,7 +74,15 @@ internal data class TmdbTitle(
     val usable: Boolean
         get() = adult != true && (id ?: 0) > 0 && displayTitle.isNotBlank()
 
-    fun toSearchResponse(type: String = mediaType.orEmpty()): SearchResponse = with(TmdbMetadata.cards) {
+    /** First three catalogue names for the poster overlay; unknown IDs are dropped. */
+    fun resolveGenres(catalogue: Map<Int, String>): List<String>? =
+        genreIds?.asSequence()?.distinct()?.mapNotNull { catalogue[it] }?.take(3)?.toList()
+            ?.takeIf { it.isNotEmpty() }
+
+    fun toSearchResponse(
+        type: String = mediaType.orEmpty(),
+        genreNames: Map<Int, String> = emptyMap(),
+    ): SearchResponse = with(TmdbMetadata.cards) {
         val isTv = type == "tv"
         // SearchAdapter compares IDs without the media type.
         val cardId = id?.let { if (isTv) -it else it }
@@ -90,6 +99,7 @@ internal data class TmdbTitle(
                 posterUrl = poster
                 score = rating
                 year = this@TmdbTitle.year
+                genres = resolveGenres(genreNames)
             }
         } else {
             newMovieSearchResponse(
@@ -100,6 +110,7 @@ internal data class TmdbTitle(
                 posterUrl = poster
                 score = rating
                 year = this@TmdbTitle.year
+                genres = resolveGenres(genreNames)
             }
         }
     }

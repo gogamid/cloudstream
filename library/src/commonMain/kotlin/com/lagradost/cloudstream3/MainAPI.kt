@@ -1413,6 +1413,12 @@ interface SearchResponse {
     var id: Int?
     var quality: SearchQuality?
     var score: Score?
+    var year: Int?
+        get() = null
+        set(_) {}
+    var genres: List<String>?
+        get() = null
+        set(_) {}
 }
 
 fun MainAPI.newTorrentSearchResponse(
@@ -1561,7 +1567,7 @@ constructor(
     override var type: TvType? = null,
 
     override var posterUrl: String? = null,
-    var year: Int? = null,
+    override var year: Int? = null,
     var dubStatus: MutableSet<DubStatus>? = null,
 
     var otherName: String? = null,
@@ -1571,6 +1577,7 @@ constructor(
     override var quality: SearchQuality? = null,
     override var posterHeaders: Map<String, String>? = null,
     override var score: Score? = null,
+    override var genres: List<String>? = null,
 ) : SearchResponse
 
 fun AnimeSearchResponse.addDubStatus(status: DubStatus, episodes: Int? = null) {
@@ -1661,11 +1668,12 @@ constructor(
     override var type: TvType? = null,
 
     override var posterUrl: String? = null,
-    var year: Int? = null,
+    override var year: Int? = null,
     override var id: Int? = null,
     override var quality: SearchQuality? = null,
     override var posterHeaders: Map<String, String>? = null,
     override var score: Score? = null,
+    override var genres: List<String>? = null,
 ) : SearchResponse {
     @Suppress("DEPRECATION_ERROR")
     @Deprecated(
@@ -1733,12 +1741,13 @@ constructor(
     override var type: TvType? = null,
 
     override var posterUrl: String? = null,
-    var year: Int? = null,
+    override var year: Int? = null,
     var episodes: Int? = null,
     override var id: Int? = null,
     override var quality: SearchQuality? = null,
     override var posterHeaders: Map<String, String>? = null,
     override var score: Score? = null,
+    override var genres: List<String>? = null,
 ) : SearchResponse {
     @Suppress("DEPRECATION_ERROR")
     @Deprecated(

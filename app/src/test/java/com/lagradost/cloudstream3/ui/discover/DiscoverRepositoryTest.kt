@@ -190,6 +190,40 @@ class DiscoverRepositoryTest {
         Unit
     }
 
+    @Test
+    fun `cards carry year and first three catalogue genre names`() {
+        val catalogue = mapOf(28 to "Action", 12 to "Adventure", 878 to "Sci-Fi", 35 to "Comedy")
+        val card = TmdbTitle(
+            id = 1, title = "Epic", releaseDate = "2024-05-01",
+            genreIds = listOf(28, 28, 12, 878, 35, 999),
+            voteAverage = 8.0, voteCount = 100,
+        ).toSearchResponse("movie", catalogue)
+        assertEquals(2024, card.year)
+        assertEquals(listOf("Action", "Adventure", "Sci-Fi"), card.genres)
+    }
+
+    @Test
+    fun `unknown-only genres leave cards without a strip`() {
+        val card = TmdbTitle(id = 1, title = "Epic").toSearchResponse("movie", mapOf(28 to "Action"))
+        assertNull(card.genres)
+    }
+
+    @Test
+    fun `discover enriches cards with catalogue genre names`() = runBlocking {
+        val repository = DiscoverRepository { path, _ ->
+            when (path) {
+                "/genre/movie/list" -> """{"genres":[{"id":28,"name":"Action"},{"id":35,"name":"Comedy"}]}"""
+                else -> """{"total_pages":1,"results":[{"id":1,"title":"Film","genre_ids":[28,35,999]}]}"""
+            }
+        }
+        repository.genres(DiscoverMediaType.MOVIES)
+        val card = repository.discover(
+            DiscoverMediaType.MOVIES, TmdbRatingFilter.ALL, emptySet(), null,
+            DiscoverSort.POPULAR, 1,
+        ).results.single()
+        assertEquals(listOf("Action", "Comedy"), card.genres)
+    }
+
     @Test(expected = CancellationException::class)
     fun `cancellation propagates when filters change`() = runBlocking {
         DiscoverRepository { _, _ -> throw CancellationException("New filter") }

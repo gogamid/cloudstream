@@ -164,6 +164,10 @@
         <item name="drawableEndCompat">@drawable/kid_star_24px</item>
     </style>
 
+    <style name="YearButton" parent="@style/SearchBox">
+        <item name="android:minWidth">40dp</item>
+    </style>
+
     <style name="TypeButton" parent="@style/SearchBox">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:text">@string/quality_hd</item>
