@@ -17,6 +17,9 @@ jobs:
     if: github.repository == 'gogamid/cloudstream'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      FORK_STABLE_KEYSTORE_PATH: ${{ runner.temp }}/fork-stable.p12
+      FORK_STABLE_STORE_PASSWORD: ${{ secrets.FORK_STABLE_STORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
       - name: Set up JDK 17
@@ -24,11 +27,17 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Reuse the development signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: fork-debug-keystore-${{ github.repository_id }}-v1
+      - name: Restore permanent stable signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FORK_STABLE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$FORK_STABLE_STORE_PASSWORD"
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$FORK_STABLE_KEYSTORE_PATH"
+          keytool -list -keystore "$FORK_STABLE_KEYSTORE_PATH" -storetype PKCS12 \
+            -storepass:env FORK_STABLE_STORE_PASSWORD -alias fork-stable
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
       - name: Test filmography and discovery, lint, and build APK
@@ -38,6 +47,12 @@ jobs:
             --tests 'com.lagradost.cloudstream3.ui.result.ActorFilmographyRepositoryTest' \
             --tests 'com.lagradost.cloudstream3.ui.discover.*' \
             :app:lintPrereleaseDebug :app:assemblePrereleaseDebug :app:assembleStableRelease
+      - name: Verify stable signing certificate
+        run: |
+          set -euo pipefail
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/stable/release/*.apk | tee "$RUNNER_TEMP/stable-cert.txt"
+          grep -qi 'b4a192d86f664d1288e1023964fedadb2fd34ff5239696e8bcd3e16f8acdf69f' "$RUNNER_TEMP/stable-cert.txt"
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
