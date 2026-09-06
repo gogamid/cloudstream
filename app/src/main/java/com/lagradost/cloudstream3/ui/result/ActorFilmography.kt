@@ -19,6 +19,7 @@ import com.lagradost.cloudstream3.databinding.ActorFilmographyBinding
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.ui.BaseBottomSheetDialogFragment
 import com.lagradost.cloudstream3.ui.BaseFragment
+import com.lagradost.cloudstream3.ui.discover.TmdbRatingFilter
 import com.lagradost.cloudstream3.ui.quicksearch.QuickSearchFragment
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_LOAD
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_PLAY_FILE
@@ -31,6 +32,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 /** Arguments and view-scoped work allow dismissal and Activity recreation during a lookup. */
@@ -66,6 +68,8 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
     private val repository = ActorFilmographyRepository()
     private var allCredits: List<SearchResponse> = emptyList()
     private var activeFilter = FilmographyFilter.ALL
+    private var ratingFilter = TmdbRatingFilter.ALL
+    private var hasLoaded = false
 
     override fun onStart() {
         super.onStart()
@@ -106,7 +110,27 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         configureFilmographyGrid(view.context)
     }
 
-    override fun onBindingCreated(binding: ActorFilmographyBinding) {
+    override fun onBindingCreated(binding: ActorFilmographyBinding, savedInstanceState: Bundle?) {
+        activeFilter = FilmographyFilter.entries.firstOrNull {
+            it.name == savedInstanceState?.getString("filmography_type")
+        } ?: activeFilter
+        ratingFilter = TmdbRatingFilter.entries.firstOrNull {
+            it.name == savedInstanceState?.getString("filmography_rating")
+        } ?: ratingFilter
+        binding.filmographyFilters.check(
+            when (activeFilter) {
+                FilmographyFilter.ALL -> R.id.filmography_filter_all
+                FilmographyFilter.MOVIES -> R.id.filmography_filter_movies
+                FilmographyFilter.SERIES -> R.id.filmography_filter_series
+            }
+        )
+        binding.filmographyRatings.check(
+            when (ratingFilter) {
+                TmdbRatingFilter.ALL -> R.id.filmography_rating_all
+                TmdbRatingFilter.SIX -> R.id.filmography_rating_six
+                TmdbRatingFilter.SEVEN -> R.id.filmography_rating_seven
+            }
+        )
         binding.filmographyActor.text = arguments?.getString(ACTOR_NAME)
         binding.filmographyClose.setOnClickListener { dismiss() }
         binding.filmographyResults.apply {
@@ -132,21 +156,34 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             }
             applyFilter()
         }
+        binding.filmographyRatings.setOnCheckedStateChangeListener { _, checkedIds ->
+            ratingFilter = when (checkedIds.firstOrNull()) {
+                R.id.filmography_rating_six -> TmdbRatingFilter.SIX
+                R.id.filmography_rating_seven -> TmdbRatingFilter.SEVEN
+                else -> TmdbRatingFilter.ALL
+            }
+            applyFilter()
+        }
         binding.filmographyRetry.setOnClickListener { loadFilmography() }
         loadFilmography()
     }
 
     private fun applyFilter() {
         val binding = binding ?: return
+        // Keep network errors and loading states intact when chips change.
+        if (!hasLoaded) return
         val filtered = when (activeFilter) {
             FilmographyFilter.ALL -> allCredits
             FilmographyFilter.MOVIES -> allCredits.filter { it.type == TvType.Movie }
             FilmographyFilter.SERIES -> allCredits.filter { it.type == TvType.TvSeries }
-        }
+        }.filter { ratingFilter.matches(it.score) }
 
         (binding.filmographyResults.adapter as? SearchAdapter)?.submitList(filtered)
         binding.filmographyResults.isVisible = filtered.isNotEmpty()
-        binding.filmographyStatus.setText(R.string.actor_filmography_empty)
+        binding.filmographyStatus.setText(
+            if (allCredits.isEmpty()) R.string.actor_filmography_empty
+            else R.string.actor_filmography_no_matches
+        )
         binding.filmographyStatus.isVisible = filtered.isEmpty() && !binding.filmographyLoading.isVisible
     }
 
@@ -157,6 +194,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             image = arguments?.getString(ACTOR_IMAGE),
         )
         loadJob?.cancel()
+        hasLoaded = false
         allCredits = emptyList()
         binding.filmographyLoading.isVisible = true
         binding.filmographyStatus.isVisible = false
@@ -166,6 +204,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         loadJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
                 allCredits = withContext(Dispatchers.IO) { repository.load(actor) }
+                hasLoaded = true
                 binding.filmographyLoading.isVisible = false
                 applyFilter()
             } catch (cancelled: CancellationException) {
@@ -176,7 +215,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
                 binding.filmographyStatus.isVisible = true
                 binding.filmographyRetry.isVisible = true
             } finally {
-                binding.filmographyLoading.isVisible = false
+                if (isActive) binding.filmographyLoading.isVisible = false
             }
         }
     }
@@ -186,10 +225,17 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         super.onDismiss(dialog)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("filmography_type", activeFilter.name)
+        outState.putString("filmography_rating", ratingFilter.name)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onDestroyView() {
         loadJob?.cancel()
         loadJob = null
         allCredits = emptyList()
+        hasLoaded = false
         binding?.filmographyResults?.adapter = null
         super.onDestroyView()
     }

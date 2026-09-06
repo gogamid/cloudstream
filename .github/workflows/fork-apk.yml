@@ -1,0 +1,58 @@
+name: Fork APK
+
+on:
+  push:
+    branches: [master, 'feature/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.repository == 'gogamid/cloudstream'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Reuse the development signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: fork-debug-keystore-${{ github.repository_id }}-v1
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+      - name: Test filmography and discovery, lint, and build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:testPrereleaseDebugUnitTest \
+            --tests 'com.lagradost.cloudstream3.ui.result.ActorFilmographyRepositoryTest' \
+            --tests 'com.lagradost.cloudstream3.ui.discover.*' \
+            :app:lintPrereleaseDebug :app:assemblePrereleaseDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: cloudstream-discover-apk
+          path: app/build/outputs/apk/prerelease/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: discovery-test-reports
+          path: |
+            app/build/reports/tests/testPrereleaseDebugUnitTest/
+            app/build/test-results/testPrereleaseDebugUnitTest/
+            app/build/reports/lint-results-prereleaseDebug.*
+          if-no-files-found: ignore
+          retention-days: 14

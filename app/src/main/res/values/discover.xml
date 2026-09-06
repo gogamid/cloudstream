@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="title_discover">Discover</string>
+    <string name="discover_hint">Explore TMDB. Select a title to search your providers.</string>
+    <string name="discover_movies">Movies</string>
+    <string name="discover_series">Series</string>
+    <string name="discover_all_types">All</string>
+    <string name="discover_rating_label">TMDB rating</string>
+    <string name="discover_rating_all">All ratings</string>
+    <string name="discover_rating_six">6+</string>
+    <string name="discover_rating_seven">7+</string>
+    <string name="discover_all_genres">All genres</string>
+    <string name="discover_load_more">Load more</string>
+    <string name="discover_empty">No titles found. Try changing your filters.</string>
+    <string name="discover_error">Could not load titles from TMDB. Please try again.</string>
+    <string name="actor_filmography_no_matches">No titles match these filters.</string>
+</resources>
