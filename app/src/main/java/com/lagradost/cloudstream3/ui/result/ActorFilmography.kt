@@ -265,8 +265,13 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         }
     }
 
-    private fun yearRangeLabel(range: YearRange): String =
-        if (range.isAll) getString(R.string.discover_all) else range.label()
+    private fun yearRangeLabel(range: YearRange): String {
+        if (range.isAll) return getString(R.string.discover_all)
+        if (range.from != null && range.to != null && range.to == range.from + 9 && range.from % 10 == 0) {
+            return if (range.from >= 2000) "${range.from}s" else "${range.from % 100}s"
+        }
+        return range.label()
+    }
 
     private fun yearPresets(): List<YearRange> {
         val y = Calendar.getInstance().get(Calendar.YEAR)
@@ -385,7 +390,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         else getString(R.string.discover_genres_selected, selectedGenres.size)
         setChip(binding.filmographyFilterGenres, getString(R.string.discover_filter_genres), genreValue)
         binding.filmographyFilterGenres.isEnabled = availableGenres.isNotEmpty()
-        val yearLabel = YearRange(yearFrom, yearTo).let { r -> if (r.isAll) getString(R.string.discover_all) else r.label() }
+        val yearLabel = yearRangeLabel(YearRange(yearFrom, yearTo))
         setChip(binding.filmographyFilterYear, getString(R.string.discover_filter_year), yearLabel)
         setChip(binding.filmographyFilterSort, getString(R.string.discover_filter_sort), getString(sortFilter.labelRes))
         binding.filmographyFilterReset.isVisible = !isDefault()
@@ -394,14 +399,16 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
     private fun applyFilter() {
         val binding = binding ?: return
         if (!hasLoaded) return
+        val yf = yearFrom
+        val yt = yearTo
         var filtered = when (activeFilter) {
             FilmographyFilter.ALL -> allCredits
             FilmographyFilter.MOVIES -> allCredits.filter { it.type == TvType.Movie }
             FilmographyFilter.SERIES -> allCredits.filter { it.type == TvType.TvSeries }
         }.filter { ratingFilter.matches(it.score) }
             .filter { languageFilter.code == null || it.originalLanguage == languageFilter.code }
-            .filter { yearFrom == null || (it.year != null && it.year >= yearFrom!!) }
-            .filter { yearTo == null || (it.year != null && it.year <= yearTo!!) }
+            .filter { yf == null || (it.year?.let { y -> y >= yf } == true) }
+            .filter { yt == null || (it.year?.let { y -> y <= yt } == true) }
             .filter { selectedGenres.isEmpty() || it.genres?.any { g -> g in selectedGenres } == true }
 
         filtered = when (sortFilter) {

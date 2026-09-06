@@ -165,8 +165,14 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         }
     }
 
-    private fun yearRangeLabel(range: YearRange): String =
-        if (range.isAll) getString(R.string.discover_all) else range.label()
+    private fun yearRangeLabel(range: YearRange): String {
+        if (range.isAll) return getString(R.string.discover_all)
+        // 70s/80s/90s/2000s/2010s/2020s shorthand for decade presets
+        if (range.from != null && range.to != null && range.to == range.from + 9 && range.from % 10 == 0) {
+            return if (range.from >= 2000) "${range.from}s" else "${range.from % 100}s"
+        }
+        return range.label()
+    }
 
     private fun yearPresets(): List<YearRange> {
         val y = Calendar.getInstance().get(Calendar.YEAR)
@@ -261,9 +267,7 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         else getString(R.string.discover_genres_selected, state.genreIds.size)
         setDropdown(binding.filterGenres, getString(R.string.discover_filter_genres), genreValue)
         binding.filterGenres.isEnabled = state.genres.isNotEmpty()
-        val yearLabel = YearRange(state.yearFrom, state.yearTo).let { r ->
-            if (r.isAll) getString(R.string.discover_all) else r.label()
-        }
+        val yearLabel = yearRangeLabel(YearRange(state.yearFrom, state.yearTo))
         setDropdown(binding.filterYear, getString(R.string.discover_filter_year), yearLabel)
         setDropdown(binding.filterSort, getString(R.string.discover_filter_sort), getString(state.sort.labelRes))
         binding.filterReset.isVisible = !state.isDefault
