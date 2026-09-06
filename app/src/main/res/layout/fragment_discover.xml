@@ -1,131 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/primaryGrayBackground"
     android:orientation="vertical">
 
-    <TextView
-        style="@style/WatchHeaderText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:text="@string/title_discover" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="4dp"
-        android:text="@string/discover_hint"
-        android:textColor="?attr/textColor" />
-
     <HorizontalScrollView
+        android:id="@+id/discover_filter_scroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:scrollbars="none">
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/discover_media_types"
+        <LinearLayout
+            android:id="@+id/discover_filters"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            app:singleLine="true"
-            app:singleSelection="true"
-            app:selectionRequired="true">
-            <com.google.android.material.chip.Chip
-                android:id="@+id/discover_movies"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="8dp">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filter_type"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checked="true"
-                android:nextFocusDown="@id/discover_rating_all"
-                android:text="@string/discover_movies" />
-            <com.google.android.material.chip.Chip
-                android:id="@+id/discover_series"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="false"
-                android:nextFocusDown="@id/discover_rating_all"
-                android:text="@string/discover_series" />
-        </com.google.android.material.chip.ChipGroup>
-    </HorizontalScrollView>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:text="@string/discover_rating_label"
-        android:textColor="?attr/textColor" />
-
-    <HorizontalScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:scrollbars="none">
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/discover_ratings"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            app:singleLine="true"
-            app:singleSelection="true"
-            app:selectionRequired="true">
-            <com.google.android.material.chip.Chip
-                android:id="@+id/discover_rating_all"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="true"
-                android:nextFocusDown="@id/discover_genre_all"
-                android:text="@string/discover_rating_all" />
-            <com.google.android.material.chip.Chip
-                android:id="@+id/discover_rating_six"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="false"
-                android:nextFocusDown="@id/discover_genre_all"
-                android:text="@string/discover_rating_six" />
-            <com.google.android.material.chip.Chip
-                android:id="@+id/discover_rating_seven"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="false"
-                android:nextFocusDown="@id/discover_genre_all"
-                android:text="@string/discover_rating_seven" />
-        </com.google.android.material.chip.ChipGroup>
-    </HorizontalScrollView>
-
-    <HorizontalScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:scrollbars="none">
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/discover_genres"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            app:singleLine="true"
-            app:singleSelection="true"
-            app:selectionRequired="true">
-            <com.google.android.material.chip.Chip
-                android:id="@+id/discover_genre_all"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="true"
+                android:layout_marginEnd="8dp"
+                android:minWidth="0dp"
                 android:nextFocusDown="@id/discover_results"
-                android:text="@string/discover_all_genres" />
-        </com.google.android.material.chip.ChipGroup>
+                tools:text="Movies ▾" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filter_rating"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:minWidth="0dp"
+                android:nextFocusDown="@id/discover_results"
+                tools:text="7+ ▾" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filter_genres"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:minWidth="0dp"
+                android:nextFocusDown="@id/discover_results"
+                tools:text="Genres ▾" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filter_year"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:minWidth="0dp"
+                android:nextFocusDown="@id/discover_results"
+                tools:text="All ▾" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filter_sort"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:minWidth="0dp"
+                android:nextFocusDown="@id/discover_results"
+                tools:text="Popular ▾" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/filter_reset"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:nextFocusDown="@id/discover_results"
+                android:text="@string/discover_reset"
+                android:visibility="gone"
+                tools:visibility="visible" />
+        </LinearLayout>
     </HorizontalScrollView>
 
     <FrameLayout
@@ -137,7 +87,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:descendantFocusability="afterDescendants"
-            android:nextFocusUp="@id/discover_genre_all"
+            android:nextFocusUp="@id/discover_filters"
             android:clipToPadding="false"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
@@ -160,5 +110,4 @@
         android:padding="12dp"
         android:textColor="?attr/textColor"
         android:visibility="gone" />
-
 </LinearLayout>

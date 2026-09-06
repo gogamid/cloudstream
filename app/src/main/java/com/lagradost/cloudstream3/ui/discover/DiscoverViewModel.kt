@@ -15,15 +15,24 @@ import kotlinx.coroutines.withContext
 
 internal data class DiscoverState(
     val type: DiscoverMediaType = DiscoverMediaType.MOVIES,
-    val rating: TmdbRatingFilter = TmdbRatingFilter.ALL,
-    val genreId: Int? = null,
+    val rating: TmdbRatingFilter = TmdbRatingFilter.SEVEN,
+    val genreIds: Set<Int> = emptySet(),
     val genres: List<TmdbGenre> = emptyList(),
+    val year: Int? = null,
+    val sort: DiscoverSort = DiscoverSort.POPULAR,
     val results: List<SearchResponse> = emptyList(),
     val page: Int = 0,
     val hasMore: Boolean = false,
     val loading: Boolean = false,
     val error: Boolean = false,
-)
+) {
+    val isDefault: Boolean
+        get() = type == DiscoverMediaType.MOVIES &&
+            rating == TmdbRatingFilter.SEVEN &&
+            genreIds.isEmpty() &&
+            year == null &&
+            sort == DiscoverSort.POPULAR
+}
 
 internal class DiscoverViewModel(private val savedState: SavedStateHandle) : ViewModel() {
     private val repository = DiscoverRepository()
@@ -33,9 +42,13 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
                 it.name == savedState.get<String>("type")
             } ?: DiscoverMediaType.MOVIES,
             rating = TmdbRatingFilter.entries.firstOrNull {
-                it.name == savedState.get<String>("rating")
-            } ?: TmdbRatingFilter.ALL,
-            genreId = savedState.get<Int>("genre")?.takeIf { it > 0 },
+                it.minimum == (savedState.get<Int>("rating") ?: TmdbRatingFilter.SEVEN.minimum)
+            } ?: TmdbRatingFilter.SEVEN,
+            genreIds = savedState.get<IntArray>("genre_ids")?.filter { it > 0 }?.toSet().orEmpty(),
+            year = savedState.get<Int>("year")?.takeIf { it in 1900..2100 },
+            sort = DiscoverSort.entries.firstOrNull {
+                it.name == savedState.get<String>("sort")
+            } ?: DiscoverSort.POPULAR,
         )
     )
     val state: LiveData<DiscoverState> = mutableState
@@ -50,25 +63,63 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
         val current = mutableState.value ?: return
         if (current.type == type) return
         savedState["type"] = type.name
-        savedState.remove<Int>("genre")
-        mutableState.value = current.copy(type = type, genreId = null, genres = emptyList())
+        savedState.remove<IntArray>("genre_ids")
+        // Genre catalogues differ between movies and series.
+        mutableState.value = current.copy(type = type, genreIds = emptySet(), genres = emptyList())
         load(reset = true)
     }
 
     fun setRating(rating: TmdbRatingFilter) {
         val current = mutableState.value ?: return
         if (current.rating == rating) return
-        savedState["rating"] = rating.name
+        savedState["rating"] = rating.minimum
         mutableState.value = current.copy(rating = rating)
         load(reset = true)
     }
 
-    fun setGenre(id: Int?) {
+    fun setGenreIds(ids: Set<Int>) {
         val current = mutableState.value ?: return
-        if (current.genreId == id) return
-        if (id != null && current.genres.none { it.id == id }) return
-        savedState["genre"] = id
-        mutableState.value = current.copy(genreId = id)
+        val valid = ids.filter { it > 0 }.toSet()
+        if (current.genreIds == valid) return
+        if (valid.isNotEmpty()) savedState["genre_ids"] = valid.sorted().toIntArray()
+        else savedState.remove<IntArray>("genre_ids")
+        mutableState.value = current.copy(genreIds = valid)
+        load(reset = true)
+    }
+
+    fun setYear(year: Int?) {
+        val current = mutableState.value ?: return
+        require(year == null || year in 1900..2100)
+        if (current.year == year) return
+        if (year != null) savedState["year"] = year else savedState.remove<Int>("year")
+        mutableState.value = current.copy(year = year)
+        load(reset = true)
+    }
+
+    fun setSort(sort: DiscoverSort) {
+        val current = mutableState.value ?: return
+        if (current.sort == sort) return
+        savedState["sort"] = sort.name
+        mutableState.value = current.copy(sort = sort)
+        load(reset = true)
+    }
+
+    fun resetFilters() {
+        val current = mutableState.value ?: return
+        if (current.isDefault) return
+        savedState["type"] = DiscoverMediaType.MOVIES.name
+        savedState["rating"] = TmdbRatingFilter.SEVEN.minimum
+        savedState.remove<IntArray>("genre_ids")
+        savedState.remove<Int>("year")
+        savedState["sort"] = DiscoverSort.POPULAR.name
+        mutableState.value = current.copy(
+            type = DiscoverMediaType.MOVIES,
+            rating = TmdbRatingFilter.SEVEN,
+            genreIds = emptySet(),
+            genres = if (current.type == DiscoverMediaType.MOVIES) current.genres else emptyList(),
+            year = null,
+            sort = DiscoverSort.POPULAR,
+        )
         load(reset = true)
     }
 
@@ -94,12 +145,17 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
             try {
                 val (genres, result) = withContext(Dispatchers.IO) {
                     val genres = snapshot.genres.ifEmpty { repository.genres(snapshot.type) }
-                    genres to repository.discover(snapshot.type, snapshot.rating, snapshot.genreId, page)
+                    genres to repository.discover(
+                        snapshot.type, snapshot.rating, snapshot.genreIds,
+                        snapshot.year, snapshot.sort, page,
+                    )
                 }
                 // A cancelled request must never overwrite newer filter results.
                 if (requestGeneration != generation) return@launch
                 mutableState.value = snapshot.copy(
                     genres = genres,
+                    // Selections made for the other catalogue never leak across types.
+                    genreIds = snapshot.genreIds.filter { id -> genres.any { it.id == id } }.toSet(),
                     results = (previous + result.results).distinctBy { it.id },
                     page = page, hasMore = result.hasMore, loading = false, error = false,
                 )

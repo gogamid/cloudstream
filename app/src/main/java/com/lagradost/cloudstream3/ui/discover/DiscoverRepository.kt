@@ -1,6 +1,7 @@
 package com.lagradost.cloudstream3.ui.discover
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import kotlinx.serialization.SerialName
@@ -10,11 +11,22 @@ internal enum class DiscoverMediaType(val path: String) {
     MOVIES("movie"), SERIES("tv")
 }
 
-@Serializable
-internal data class TmdbGenre(
-    @JsonProperty("id") @SerialName("id") val id: Int = 0,
-    @JsonProperty("name") @SerialName("name") val name: String = "",
-)
+/** Every option maps to a single TMDB `sort_by` value so paging stays server-side. */
+internal enum class DiscoverSort(val labelRes: Int) {
+    POPULAR(R.string.discover_sort_popular),
+    TOP_RATED(R.string.discover_sort_top_rated),
+    NEWEST(R.string.discover_sort_newest),
+    OLDEST(R.string.discover_sort_oldest),
+    TITLE_AZ(R.string.discover_sort_title_az);
+
+    fun sortBy(type: DiscoverMediaType): String = when (this) {
+        POPULAR -> "popularity.desc"
+        TOP_RATED -> "vote_average.desc"
+        NEWEST -> if (type == DiscoverMediaType.SERIES) "first_air_date.desc" else "primary_release_date.desc"
+        OLDEST -> if (type == DiscoverMediaType.SERIES) "first_air_date.asc" else "primary_release_date.asc"
+        TITLE_AZ -> "original_title.asc"
+    }
+}
 
 internal data class DiscoverPage(val results: List<SearchResponse>, val hasMore: Boolean)
 
@@ -41,22 +53,38 @@ internal class DiscoverRepository(
     suspend fun discover(
         type: DiscoverMediaType,
         rating: TmdbRatingFilter,
-        genreId: Int?,
+        genreIds: Set<Int>,
+        year: Int?,
+        sort: DiscoverSort,
         page: Int,
     ): DiscoverPage {
         require(page in 1..500)
-        require(genreId == null || genreId > 0)
+        require(genreIds.all { it > 0 })
+        require(year == null || year in 1900..2100)
         val params = mutableMapOf(
             "language" to "en-US",
             "include_adult" to "false",
-            "sort_by" to "popularity.desc",
+            "sort_by" to sort.sortBy(type),
             "page" to page.toString(),
         )
         if (rating != TmdbRatingFilter.ALL) {
             params["vote_average.gte"] = rating.minimum.toString()
             params["vote_count.gte"] = "1"
         }
-        genreId?.let { params["with_genres"] = it.toString() }
+        // Top-rated sorting needs a meaningful vote floor, otherwise single-vote
+        // 10.0 titles dominate the list.
+        if (sort == DiscoverSort.TOP_RATED) {
+            params["vote_count.gte"] = "25"
+        }
+        if (genreIds.isNotEmpty()) {
+            // Pipe = OR: titles matching any selected genre.
+            params["with_genres"] = genreIds.sorted().joinToString("|")
+        }
+        year?.let {
+            params[
+                if (type == DiscoverMediaType.SERIES) "first_air_date_year" else "primary_release_year"
+            ] = it.toString()
+        }
         val response = parseJson<DiscoverResponse>(request("/discover/${type.path}", params))
         return DiscoverPage(
             results = response.results.orEmpty().asSequence()

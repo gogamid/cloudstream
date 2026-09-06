@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="title_discover">Discover</string>
-    <string name="discover_hint">Explore TMDB. Select a title to search your providers.</string>
     <string name="discover_movies">Movies</string>
     <string name="discover_series">Series</string>
     <string name="discover_all_types">All</string>
@@ -9,7 +8,22 @@
     <string name="discover_rating_all">All ratings</string>
     <string name="discover_rating_six">6+</string>
     <string name="discover_rating_seven">7+</string>
-    <string name="discover_all_genres">All genres</string>
+    <string name="discover_all">All</string>
+    <string name="discover_filter_type">Type</string>
+    <string name="discover_filter_rating">Rating</string>
+    <string name="discover_filter_genres">Genres</string>
+    <string name="discover_genres_selected">Genres (%1$d)</string>
+    <string name="discover_filter_year">Year</string>
+    <string name="discover_filter_sort">Sort by</string>
+    <string name="discover_sort_popular">Popular</string>
+    <string name="discover_sort_top_rated">Top rated</string>
+    <string name="discover_sort_newest">Newest</string>
+    <string name="discover_sort_oldest">Oldest</string>
+    <string name="discover_sort_title_az">Title A–Z</string>
+    <string name="discover_dropdown_value">%1$s ▾</string>
+    <string name="discover_apply">Apply</string>
+    <string name="discover_clear">Clear</string>
+    <string name="discover_reset">Reset</string>
     <string name="discover_empty">No titles found. Try changing your filters.</string>
     <string name="discover_error">Could not load titles from TMDB. Tap to try again.</string>
     <string name="actor_filmography_no_matches">No titles match these filters.</string>

@@ -1,12 +1,12 @@
 package com.lagradost.cloudstream3.ui.discover
 
 import android.view.View
-import androidx.core.view.children
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.chip.Chip
+import com.google.android.material.button.MaterialButton
 import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.databinding.FragmentDiscoverBinding
 import com.lagradost.cloudstream3.ui.BaseFragment
@@ -23,13 +23,12 @@ import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.utils.UIHelper.fixSystemBarsPadding
 import com.lagradost.cloudstream3.utils.UIHelper.getSpanCount
 import com.lagradost.cloudstream3.ui.settings.Globals.isLandscape
+import java.util.Calendar
 
 class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
     BaseFragment.BindingCreator.Inflate(FragmentDiscoverBinding::inflate)
 ) {
     private val viewModel: DiscoverViewModel by viewModels()
-    private var renderingFilters = false
-    private var renderedGenres: List<TmdbGenre>? = null
 
     override fun fixLayout(view: View) {
         fixSystemBarsPadding(view, padBottom = isLandscape(), padLeft = isLayout(TV or EMULATOR))
@@ -70,30 +69,12 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
                 }
             })
         }
-        binding.discoverMediaTypes.setOnCheckedStateChangeListener { _, ids ->
-            if (!renderingFilters) {
-                viewModel.setType(
-                    if (R.id.discover_series in ids) DiscoverMediaType.SERIES else DiscoverMediaType.MOVIES
-                )
-            }
-        }
-        binding.discoverRatings.setOnCheckedStateChangeListener { _, ids ->
-            if (!renderingFilters) {
-                viewModel.setRating(
-                    when (ids.firstOrNull()) {
-                        R.id.discover_rating_six -> TmdbRatingFilter.SIX
-                        R.id.discover_rating_seven -> TmdbRatingFilter.SEVEN
-                        else -> TmdbRatingFilter.ALL
-                    }
-                )
-            }
-        }
-        binding.discoverGenres.setOnCheckedStateChangeListener { group, ids ->
-            if (!renderingFilters) {
-                val selected = ids.firstOrNull()?.let { group.findViewById<Chip>(it) }
-                viewModel.setGenre(selected?.tag as? Int)
-            }
-        }
+        binding.filterType.setOnClickListener { showTypeDialog() }
+        binding.filterRating.setOnClickListener { showRatingDialog() }
+        binding.filterGenres.setOnClickListener { showGenresDialog() }
+        binding.filterYear.setOnClickListener { showYearDialog() }
+        binding.filterSort.setOnClickListener { showSortDialog() }
+        binding.filterReset.setOnClickListener { viewModel.resetFilters() }
         // No load-more/retry button: paging is automatic, errors retry by tapping
         // the status text.
         binding.discoverStatus.setOnClickListener {
@@ -102,44 +83,124 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         viewModel.state.observe(viewLifecycleOwner) { render(it) }
     }
 
+    private fun setDropdown(button: MaterialButton, filterName: String, value: String) {
+        button.text = getString(R.string.discover_dropdown_value, value)
+        button.contentDescription = "$filterName: $value"
+    }
+
+    private fun showTypeDialog() {
+        val options = DiscoverMediaType.entries.toList()
+        val current = viewModel.state.value?.type ?: DiscoverMediaType.MOVIES
+        val names = options.map {
+            getString(if (it == DiscoverMediaType.MOVIES) R.string.discover_movies else R.string.discover_series)
+        }.toTypedArray()
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.discover_filter_type)
+            .setSingleChoiceItems(names, options.indexOf(current)) { dialog, which ->
+                viewModel.setType(options[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showRatingDialog() {
+        val options = TmdbRatingFilter.entries.sortedBy { it.minimum }
+        val current = viewModel.state.value?.rating ?: TmdbRatingFilter.SEVEN
+        val names = options.map { ratingName(it) }.toTypedArray()
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.discover_filter_rating)
+            .setSingleChoiceItems(names, options.indexOf(current)) { dialog, which ->
+                viewModel.setRating(options[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun ratingName(rating: TmdbRatingFilter): String =
+        if (rating == TmdbRatingFilter.ALL) getString(R.string.discover_all)
+        else "${rating.minimum}+"
+
+    private fun showGenresDialog() {
+        val state = viewModel.state.value ?: return
+        if (state.genres.isEmpty()) return
+        val options = state.genres
+        val pending = state.genreIds.toMutableSet()
+        val checked = options.map { it.id in pending }.toBooleanArray()
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.discover_filter_genres)
+            .setMultiChoiceItems(
+                options.map { it.name }.toTypedArray(), checked
+            ) { _, which, isChecked ->
+                if (isChecked) pending.add(options[which].id)
+                else pending.remove(options[which].id)
+            }
+            .setPositiveButton(R.string.discover_apply) { _, _ ->
+                viewModel.setGenreIds(pending)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.discover_clear, null)
+            .create()
+        dialog.show()
+        // Clearing previews inside the dialog; Cancel still aborts everything.
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+            pending.clear()
+            for (i in options.indices) dialog.listView.setItemChecked(i, false)
+        }
+    }
+
+    private fun yearOptions(): List<Int?> {
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        return listOf(null) + (currentYear downTo 1960).toList()
+    }
+
+    private fun showYearDialog() {
+        val options = yearOptions()
+        val current = viewModel.state.value?.year
+        val names = options.map { it?.toString() ?: getString(R.string.discover_all) }.toTypedArray()
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.discover_filter_year)
+            .setSingleChoiceItems(names, options.indexOf(current).takeIf { it >= 0 } ?: 0) { dialog, which ->
+                viewModel.setYear(options[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showSortDialog() {
+        val options = DiscoverSort.entries.toList()
+        val current = viewModel.state.value?.sort ?: DiscoverSort.POPULAR
+        val names = options.map { getString(it.labelRes) }.toTypedArray()
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.discover_filter_sort)
+            .setSingleChoiceItems(names, options.indexOf(current)) { dialog, which ->
+                viewModel.setSort(options[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun render(state: DiscoverState) {
         val binding = binding ?: return
-        renderingFilters = true
-        try {
-            binding.discoverMediaTypes.check(
-                if (state.type == DiscoverMediaType.MOVIES) R.id.discover_movies else R.id.discover_series
-            )
-            binding.discoverRatings.check(
-                when (state.rating) {
-                    TmdbRatingFilter.ALL -> R.id.discover_rating_all
-                    TmdbRatingFilter.SIX -> R.id.discover_rating_six
-                    TmdbRatingFilter.SEVEN -> R.id.discover_rating_seven
-                }
-            )
-            if (renderedGenres != state.genres) {
-                binding.discoverGenres.removeAllViews()
-                val options = listOf(TmdbGenre(0, getString(R.string.discover_all_genres))) + state.genres
-                for (genre in options) {
-                    val chip = layoutInflater.inflate(
-                        R.layout.discover_genre_chip, binding.discoverGenres, false
-                    ) as Chip
-                    chip.id = if (genre.id == 0) R.id.discover_genre_all else View.generateViewId()
-                    chip.text = genre.name
-                    chip.tag = genre.id.takeIf { it > 0 }
-                    chip.nextFocusDownId = R.id.discover_results
-                    chip.nextFocusUpId = binding.discoverRatings.checkedChipId
-                    binding.discoverGenres.addView(chip)
-                }
-                renderedGenres = state.genres
-            }
-            binding.discoverGenres.children.filterIsInstance<Chip>()
-                .firstOrNull { it.tag == state.genreId }?.let { binding.discoverGenres.check(it.id) }
-            binding.discoverGenres.children.forEach {
-                it.nextFocusUpId = binding.discoverRatings.checkedChipId
-            }
-        } finally {
-            renderingFilters = false
-        }
+        val typeName = getString(
+            if (state.type == DiscoverMediaType.MOVIES) R.string.discover_movies else R.string.discover_series
+        )
+        setDropdown(binding.filterType, getString(R.string.discover_filter_type), typeName)
+        setDropdown(binding.filterRating, getString(R.string.discover_filter_rating), ratingName(state.rating))
+        val genreValue = if (state.genreIds.isEmpty()) getString(R.string.discover_filter_genres)
+        else getString(R.string.discover_genres_selected, state.genreIds.size)
+        setDropdown(binding.filterGenres, getString(R.string.discover_filter_genres), genreValue)
+        binding.filterGenres.isEnabled = state.genres.isNotEmpty()
+        setDropdown(
+            binding.filterYear, getString(R.string.discover_filter_year),
+            state.year?.toString() ?: getString(R.string.discover_all),
+        )
+        setDropdown(binding.filterSort, getString(R.string.discover_filter_sort), getString(state.sort.labelRes))
+        binding.filterReset.isVisible = !state.isDefault
+
         (binding.discoverResults.adapter as? SearchAdapter)?.submitList(state.results, Runnable {
             val views = this.binding ?: return@Runnable
             if (state.page <= 1) views.discoverResults.scrollToPosition(0)
@@ -177,7 +238,6 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
 
     override fun onDestroyView() {
         binding?.discoverResults?.adapter = null
-        renderedGenres = null
         super.onDestroyView()
     }
 }
