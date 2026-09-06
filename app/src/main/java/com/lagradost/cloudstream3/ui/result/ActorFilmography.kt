@@ -74,9 +74,9 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
     private var loadJob: Job? = null
     private val repository = ActorFilmographyRepository()
     private var allCredits: List<SearchResponse> = emptyList()
-    private var activeFilter = FilmographyFilter.ALL
-    private var languageFilter = DiscoverLanguage.ALL
-    private var ratingFilter = TmdbRatingFilter.ALL
+    private var activeFilter = FilmographyFilter.MOVIES
+    private var languageFilter = DiscoverLanguage.ENGLISH
+    private var ratingFilter = TmdbRatingFilter.SEVEN
     private var selectedGenres: Set<String> = emptySet()
     private var yearFrom: Int? = null
     private var yearTo: Int? = null
@@ -87,19 +87,11 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
     override fun onStart() {
         super.onStart()
         view?.let { fixLayout(it) }
-        (dialog as? BottomSheetDialog)?.let { d ->
-            d.behavior.apply {
-                skipCollapsed = true
-                isFitToContents = false
-                expandedOffset = 0
-                state = BottomSheetBehavior.STATE_EXPANDED
-            }
-            // Full-screen sheet — no 0.85 peek, covers status bar area.
-            d.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)?.let { sheet ->
-                sheet.layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
-                sheet.requestLayout()
-            }
-            d.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        (dialog as? BottomSheetDialog)?.behavior?.apply {
+            skipCollapsed = true
+            isFitToContents = false
+            expandedOffset = 0
+            state = BottomSheetBehavior.STATE_EXPANDED
         }
     }
 
@@ -119,15 +111,13 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
 
     override fun fixLayout(view: View) {
         fixSystemBarsPadding(view)
-        // Full-screen filmography — was 0.85, now MATCH_PARENT via BottomSheet.
+        // Full-screen: use display height so RecyclerView gets a bounded
+        // weighted height (header + filters + weight=1 list) and can scroll
+        // both on touch and TV D-pad. Wrap_content clipped to 12 before.
         view.layoutParams?.let {
-            it.height = ViewGroup.LayoutParams.MATCH_PARENT
+            it.height = resources.displayMetrics.heightPixels
             view.layoutParams = it
         }
-        // Ensure dialog window also full-screen for true immersion.
-        (dialog as? BottomSheetDialog)?.window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        )
         configureFilmographyGrid(view.context)
     }
 
@@ -357,18 +347,18 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
     }
 
     private fun isDefault(): Boolean =
-        activeFilter == FilmographyFilter.ALL &&
-            languageFilter == DiscoverLanguage.ALL &&
-            ratingFilter == TmdbRatingFilter.ALL &&
+        activeFilter == FilmographyFilter.MOVIES &&
+            languageFilter == DiscoverLanguage.ENGLISH &&
+            ratingFilter == TmdbRatingFilter.SEVEN &&
             selectedGenres.isEmpty() &&
             yearFrom == null && yearTo == null &&
             sortFilter == DiscoverSort.POPULAR
 
     private fun resetFilters() {
         if (isDefault()) return
-        activeFilter = FilmographyFilter.ALL
-        languageFilter = DiscoverLanguage.ALL
-        ratingFilter = TmdbRatingFilter.ALL
+        activeFilter = FilmographyFilter.MOVIES
+        languageFilter = DiscoverLanguage.ENGLISH
+        ratingFilter = TmdbRatingFilter.SEVEN
         selectedGenres = emptySet()
         yearFrom = null; yearTo = null
         sortFilter = DiscoverSort.POPULAR
