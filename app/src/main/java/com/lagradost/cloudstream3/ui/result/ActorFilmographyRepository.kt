@@ -66,15 +66,7 @@ internal class ActorFilmographyRepository(
             request("/person/${person.id}/combined_credits", mapOf("language" to "en-US"))
         ).cast.orEmpty()
 
-        // Combined credits mix movies and series, so both catalogues are needed.
-        val genreRepo = DiscoverRepository(request)
-        val catalogue = coroutineScope {
-            val movies = async(Dispatchers.IO) { genreRepo.genres(DiscoverMediaType.MOVIES) }
-            val series = async(Dispatchers.IO) { genreRepo.genres(DiscoverMediaType.SERIES) }
-            (movies.await() + series.await()).associate { it.id to it.name }
-        }
-
-        return credits.asSequence()
+        val filtered = credits.asSequence()
             .filter { it.mediaType == "movie" || it.mediaType == "tv" }
             .filter { it.usable }
             .distinctBy { it.mediaType to it.id }
@@ -82,8 +74,20 @@ internal class ActorFilmographyRepository(
                 compareByDescending<TmdbTitle> { it.popularity ?: 0.0 }
                     .thenByDescending { it.year ?: 0 }
             )
-            .map { it.toSearchResponse(genreNames = catalogue) }
             .toList()
+        if (filtered.isEmpty()) return emptyList()
+
+        // Combined credits mix movies and series, so both catalogues are needed
+        // for the poster genre strip. Fetch is skipped for empty results to keep
+        // fast paths and existing tests network-light.
+        val genreRepo = DiscoverRepository(request)
+        val catalogue = coroutineScope {
+            val movies = async(Dispatchers.IO) { genreRepo.genres(DiscoverMediaType.MOVIES) }
+            val series = async(Dispatchers.IO) { genreRepo.genres(DiscoverMediaType.SERIES) }
+            (movies.await() + series.await()).associate { it.id to it.name }
+        }
+
+        return filtered.map { it.toSearchResponse(genreNames = catalogue) }
     }
 
     private fun String?.imageFileName(): String? = this
