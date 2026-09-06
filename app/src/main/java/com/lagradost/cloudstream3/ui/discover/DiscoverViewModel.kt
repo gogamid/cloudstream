@@ -19,7 +19,8 @@ internal data class DiscoverState(
     val rating: TmdbRatingFilter = TmdbRatingFilter.SEVEN,
     val genreIds: Set<Int> = emptySet(),
     val genres: List<TmdbGenre> = emptyList(),
-    val year: Int? = null,
+    val yearFrom: Int? = null,
+    val yearTo: Int? = null,
     val sort: DiscoverSort = DiscoverSort.POPULAR,
     val results: List<SearchResponse> = emptyList(),
     val page: Int = 0,
@@ -32,7 +33,7 @@ internal data class DiscoverState(
             language == DiscoverLanguage.ENGLISH &&
             rating == TmdbRatingFilter.SEVEN &&
             genreIds.isEmpty() &&
-            year == null &&
+            yearFrom == null && yearTo == null &&
             sort == DiscoverSort.POPULAR
 }
 
@@ -50,7 +51,8 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
                 it.minimum == (savedState.get<Int>("rating") ?: TmdbRatingFilter.SEVEN.minimum)
             } ?: TmdbRatingFilter.SEVEN,
             genreIds = savedState.get<IntArray>("genre_ids")?.filter { it > 0 }?.toSet().orEmpty(),
-            year = savedState.get<Int>("year")?.takeIf { it in 1900..2100 },
+            yearFrom = savedState.get<Int>("yearFrom")?.takeIf { it in 1900..2100 },
+            yearTo = savedState.get<Int>("yearTo")?.takeIf { it in 1900..2100 },
             sort = DiscoverSort.entries.firstOrNull {
                 it.name == savedState.get<String>("sort")
             } ?: DiscoverSort.POPULAR,
@@ -100,12 +102,17 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
         load(reset = true)
     }
 
-    fun setYear(year: Int?) {
+    fun setYearRange(from: Int?, to: Int?) {
         val current = mutableState.value ?: return
-        require(year == null || year in 1900..2100)
-        if (current.year == year) return
-        if (year != null) savedState["year"] = year else savedState.remove<Int>("year")
-        mutableState.value = current.copy(year = year)
+        require(from == null || from in 1900..2100)
+        require(to == null || to in 1900..2100)
+        require(from == null || to == null || from <= to)
+        if (current.yearFrom == from && current.yearTo == to) return
+        if (from != null) savedState["yearFrom"] = from else savedState.remove<Int>("yearFrom")
+        if (to != null) savedState["yearTo"] = to else savedState.remove<Int>("yearTo")
+        // Legacy single-year key cleanup
+        savedState.remove<Int>("year")
+        mutableState.value = current.copy(yearFrom = from, yearTo = to)
         load(reset = true)
     }
 
@@ -124,6 +131,8 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
         savedState["language"] = DiscoverLanguage.ENGLISH.name
         savedState["rating"] = TmdbRatingFilter.SEVEN.minimum
         savedState.remove<IntArray>("genre_ids")
+        savedState.remove<Int>("yearFrom")
+        savedState.remove<Int>("yearTo")
         savedState.remove<Int>("year")
         savedState["sort"] = DiscoverSort.POPULAR.name
         mutableState.value = current.copy(
@@ -132,7 +141,8 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
             rating = TmdbRatingFilter.SEVEN,
             genreIds = emptySet(),
             genres = if (current.type == DiscoverMediaType.MOVIES) current.genres else emptyList(),
-            year = null,
+            yearFrom = null,
+            yearTo = null,
             sort = DiscoverSort.POPULAR,
         )
         load(reset = true)
@@ -162,7 +172,7 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
                     val genres = snapshot.genres.ifEmpty { repository.genres(snapshot.type) }
                     genres to repository.discover(
                         snapshot.type, snapshot.language, snapshot.rating, snapshot.genreIds,
-                        snapshot.year, snapshot.sort, page,
+                        snapshot.yearFrom, snapshot.yearTo, snapshot.sort, page,
                     )
                 }
                 // A cancelled request must never overwrite newer filter results.

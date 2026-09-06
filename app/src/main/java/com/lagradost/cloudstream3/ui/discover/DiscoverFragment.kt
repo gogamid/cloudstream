@@ -165,20 +165,71 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         }
     }
 
-    private fun yearOptions(): List<Int?> {
-        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-        return listOf(null) + (currentYear downTo 1960).toList()
+    private fun yearRangeLabel(range: YearRange): String =
+        if (range.isAll) getString(R.string.discover_all) else range.label()
+
+    private fun yearPresets(): List<YearRange> {
+        val y = Calendar.getInstance().get(Calendar.YEAR)
+        return listOf(
+            YearRange(null, null), // All
+            YearRange(y, y),
+            YearRange(y - 1, y - 1),
+            YearRange(y - 4, y), // Last 5
+            YearRange(2015, 2019),
+            YearRange(2010, 2019),
+            YearRange(2000, 2009),
+            YearRange(1990, 1999),
+            YearRange(1980, 1989),
+            YearRange(1970, 1979),
+        )
     }
 
     private fun showYearDialog() {
-        val options = yearOptions()
-        val current = viewModel.state.value?.year
-        val names = options.map { it?.toString() ?: getString(R.string.discover_all) }.toTypedArray()
+        val presets = yearPresets()
+        val current = YearRange(viewModel.state.value?.yearFrom, viewModel.state.value?.yearTo)
+        val presetLabels = presets.map { yearRangeLabel(it) }.toMutableList()
+        presetLabels.add(getString(R.string.discover_year_custom))
+        val checked = presets.indexOf(current).takeIf { it >= 0 } ?: -1
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.discover_filter_year)
-            .setSingleChoiceItems(names, options.indexOf(current).takeIf { it >= 0 } ?: 0) { dialog, which ->
-                viewModel.setYear(options[which])
-                dialog.dismiss()
+            .setSingleChoiceItems(presetLabels.toTypedArray(), checked) { dialog, which ->
+                if (which == presets.size) {
+                    dialog.dismiss()
+                    showCustomYearRangeDialog()
+                } else {
+                    val r = presets[which]
+                    viewModel.setYearRange(r.from, r.to)
+                    dialog.dismiss()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showCustomYearRangeDialog() {
+        val years: List<Int?> = listOf(null) + (Calendar.getInstance().get(Calendar.YEAR) downTo 1960).toList()
+        val names = years.map { it?.toString() ?: getString(R.string.discover_all) }.toTypedArray()
+        var pendingFrom = viewModel.state.value?.yearFrom
+        var pendingTo = viewModel.state.value?.yearTo
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.discover_year_from)
+            .setSingleChoiceItems(names, years.indexOf(pendingFrom).takeIf { it >= 0 } ?: 0) { dFrom, whichFrom ->
+                pendingFrom = years[whichFrom]
+                dFrom.dismiss()
+                AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.discover_year_to)
+                    .setSingleChoiceItems(names, years.indexOf(pendingTo).takeIf { it >= 0 } ?: 0) { dTo, whichTo ->
+                        pendingTo = years[whichTo]
+                        dTo.dismiss()
+                        var f = pendingFrom
+                        var t = pendingTo
+                        if (f != null && t != null && f > t) {
+                            val tmp = f; f = t; t = tmp
+                        }
+                        viewModel.setYearRange(f, t)
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -210,10 +261,10 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         else getString(R.string.discover_genres_selected, state.genreIds.size)
         setDropdown(binding.filterGenres, getString(R.string.discover_filter_genres), genreValue)
         binding.filterGenres.isEnabled = state.genres.isNotEmpty()
-        setDropdown(
-            binding.filterYear, getString(R.string.discover_filter_year),
-            state.year?.toString() ?: getString(R.string.discover_all),
-        )
+        val yearLabel = YearRange(state.yearFrom, state.yearTo).let { r ->
+            if (r.isAll) getString(R.string.discover_all) else r.label()
+        }
+        setDropdown(binding.filterYear, getString(R.string.discover_filter_year), yearLabel)
         setDropdown(binding.filterSort, getString(R.string.discover_filter_sort), getString(state.sort.labelRes))
         binding.filterReset.isVisible = !state.isDefault
 

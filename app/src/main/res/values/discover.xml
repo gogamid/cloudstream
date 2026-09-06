@@ -21,6 +21,9 @@
     <string name="discover_filter_genres">Genres</string>
     <string name="discover_genres_selected">Genres (%1$d)</string>
     <string name="discover_filter_year">Year</string>
+    <string name="discover_year_custom">Custom range…</string>
+    <string name="discover_year_from">From year</string>
+    <string name="discover_year_to">To year</string>
     <string name="discover_filter_sort">Sort by</string>
     <string name="discover_sort_popular">Popular</string>
     <string name="discover_sort_top_rated">Top rated</string>

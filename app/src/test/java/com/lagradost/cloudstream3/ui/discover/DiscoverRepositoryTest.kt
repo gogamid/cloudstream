@@ -21,11 +21,13 @@ class DiscoverRepositoryTest {
             assertEquals("7", params["vote_average.gte"])
             assertEquals("1", params["vote_count.gte"])
             assertEquals("27", params["with_genres"])
-            assertEquals("2024", params["primary_release_year"])
+            assertEquals("2024-01-01", params["primary_release_date.gte"])
+            assertEquals("2024-12-31", params["primary_release_date.lte"])
             assertEquals("popularity.desc", params["sort_by"])
             assertEquals("2", params["page"])
             assertEquals("false", params["include_adult"])
-            assertEquals("popularity.desc", params["sort_by"])
+            assertFalse(params.containsKey("primary_release_year"))
+            assertFalse(params.containsKey("first_air_date.gte"))
             """{"total_pages":3,"results":[
                 {"id":1,"title":"Exact threshold","vote_average":7.0,"vote_count":120},
                 {"id":2,"title":"Below threshold","vote_average":6.999},
@@ -34,11 +36,25 @@ class DiscoverRepositoryTest {
             ]}"""
         }
         val page = repository.discover(
-            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.SEVEN, setOf(27), 2024,
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.SEVEN, setOf(27), 2024, 2024,
             DiscoverSort.POPULAR, 2,
         )
         assertEquals(listOf("Exact threshold"), page.results.map { it.name })
         assertTrue(page.hasMore)
+    }
+
+    @Test
+    fun `year range 2005 to 2010 uses gte and lte`() = runBlocking {
+        val repository = DiscoverRepository { _, params ->
+            assertEquals("2005-01-01", params["primary_release_date.gte"])
+            assertEquals("2010-12-31", params["primary_release_date.lte"])
+            """{"total_pages":1,"results":[]}"""
+        }
+        repository.discover(
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ALL, TmdbRatingFilter.ALL, emptySet(), 2005, 2010,
+            DiscoverSort.POPULAR, 1,
+        )
+        Unit
     }
 
     @Test
@@ -47,13 +63,14 @@ class DiscoverRepositoryTest {
             assertEquals("27|35|80", params["with_genres"])
             assertFalse(params.containsKey("vote_average.gte"))
             assertFalse(params.containsKey("vote_count.gte"))
-            assertFalse(params.containsKey("primary_release_year"))
+            assertFalse(params.containsKey("primary_release_date.gte"))
+            assertFalse(params.containsKey("primary_release_date.lte"))
             assertEquals("en", params["with_original_language"])
             assertEquals("popularity.desc", params["sort_by"])
             """{"total_pages":1,"results":[{"id":1,"title":"Unrated"}]}"""
         }
         val page = repository.discover(
-            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, setOf(80, 27, 35), null,
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, setOf(80, 27, 35), null, null,
             DiscoverSort.POPULAR, 1,
         )
         assertEquals("Unrated", page.results.single().name)
@@ -68,14 +85,14 @@ class DiscoverRepositoryTest {
             """{"total_pages":1,"results":[]}"""
         }
         repository.discover(
-            DiscoverMediaType.MOVIES, DiscoverLanguage.ALL, TmdbRatingFilter.ALL, emptySet(), null,
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ALL, TmdbRatingFilter.ALL, emptySet(), null, null,
             DiscoverSort.POPULAR, 1,
         )
         Unit
     }
 
     @Test
-    fun `TV discovery uses TV endpoints year key genres dates and distinct card IDs`() = runBlocking {
+    fun `TV discovery uses TV endpoints year range genres dates and distinct card IDs`() = runBlocking {
         val paths = mutableListOf<String>()
         var discoverParams: Map<String, String> = emptyMap()
         val repository = DiscoverRepository { path, params ->
@@ -93,11 +110,13 @@ class DiscoverRepositoryTest {
         }
         assertEquals(listOf(35, 9648), repository.genres(DiscoverMediaType.SERIES).map { it.id })
         val card = repository.discover(
-            DiscoverMediaType.SERIES, DiscoverLanguage.RUSSIAN, TmdbRatingFilter.ALL, setOf(35), 2022,
+            DiscoverMediaType.SERIES, DiscoverLanguage.RUSSIAN, TmdbRatingFilter.ALL, setOf(35), 2022, 2022,
             DiscoverSort.NEWEST, 1,
         ).results.single() as TvSeriesSearchResponse
         assertEquals(listOf("/genre/tv/list", "/discover/tv"), paths)
-        assertEquals("2022", discoverParams["first_air_date_year"])
+        assertEquals("2022-01-01", discoverParams["first_air_date.gte"])
+        assertEquals("2022-12-31", discoverParams["first_air_date.lte"])
+        assertFalse(discoverParams.containsKey("primary_release_date.gte"))
         assertFalse(discoverParams.containsKey("primary_release_year"))
         assertEquals("first_air_date.desc", discoverParams["sort_by"])
         assertEquals("35", discoverParams["with_genres"])
@@ -123,6 +142,15 @@ class DiscoverRepositoryTest {
     }
 
     @Test
+    fun `year range label formats All single and range`() {
+        assertEquals("All", YearRange(null, null).label())
+        assertEquals("2024", YearRange(2024, 2024).label())
+        assertEquals("2005 — 2010", YearRange(2005, 2010).label())
+        assertEquals("2005+", YearRange(2005, null).label())
+        assertEquals("≤2010", YearRange(null, 2010).label())
+    }
+
+    @Test
     fun `top rated sorting requires a meaningful vote floor`() = runBlocking {
         val repository = DiscoverRepository { _, params ->
             assertEquals("vote_average.desc", params["sort_by"])
@@ -130,7 +158,7 @@ class DiscoverRepositoryTest {
             """{"total_pages":1,"results":[]}"""
         }
         repository.discover(
-            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null,
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
             DiscoverSort.TOP_RATED, 1,
         )
         Unit
@@ -149,7 +177,7 @@ class DiscoverRepositoryTest {
             ]}"""
         }
         val card = repository.discover(
-            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null,
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
             DiscoverSort.POPULAR, 1,
         ).results.single() as MovieSearchResponse
         assertEquals("Original", card.name)
@@ -173,13 +201,13 @@ class DiscoverRepositoryTest {
         val repository = DiscoverRepository { _, _ -> """{"total_pages":900,"results":[]}""" }
         assertFalse(
             repository.discover(
-                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null,
+                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
                 DiscoverSort.POPULAR, 500,
             ).hasMore
         )
         val empty = DiscoverRepository { _, _ -> "{}" }
             .discover(
-                DiscoverMediaType.SERIES, DiscoverLanguage.ALL, TmdbRatingFilter.ALL, emptySet(), null,
+                DiscoverMediaType.SERIES, DiscoverLanguage.ALL, TmdbRatingFilter.ALL, emptySet(), null, null,
                 DiscoverSort.POPULAR, 1,
             )
         assertTrue(empty.results.isEmpty())
@@ -190,17 +218,30 @@ class DiscoverRepositoryTest {
     fun `invalid genre and page filters are rejected`() = runBlocking {
         DiscoverRepository { _, _ -> "{}" }
             .discover(
-                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, setOf(-1), null,
+                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, setOf(-1), null, null,
                 DiscoverSort.POPULAR, 1,
             )
         Unit
+    }
+
+    @Test
+    fun `invalid year range is rejected`() = runBlocking {
+        try {
+            DiscoverRepository { _, _ -> "{}" }.discover(
+                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), 2010, 2005,
+                DiscoverSort.POPULAR, 1,
+            )
+            assertTrue(false)
+        } catch (e: IllegalArgumentException) {
+            assertTrue(true)
+        }
     }
 
     @Test(expected = IOException::class)
     fun `network errors propagate to the retry state`() = runBlocking {
         DiscoverRepository { _, _ -> throw IOException("Offline") }
             .discover(
-                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null,
+                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
                 DiscoverSort.POPULAR, 1,
             )
         Unit
@@ -234,7 +275,7 @@ class DiscoverRepositoryTest {
         }
         repository.genres(DiscoverMediaType.MOVIES)
         val card = repository.discover(
-            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null,
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
             DiscoverSort.POPULAR, 1,
         ).results.single()
         assertEquals(listOf("Action", "Comedy"), card.genres)
@@ -244,7 +285,7 @@ class DiscoverRepositoryTest {
     fun `cancellation propagates when filters change`() = runBlocking {
         DiscoverRepository { _, _ -> throw CancellationException("New filter") }
             .discover(
-                DiscoverMediaType.SERIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null,
+                DiscoverMediaType.SERIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
                 DiscoverSort.POPULAR, 1,
             )
         Unit

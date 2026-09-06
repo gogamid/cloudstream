@@ -43,6 +43,17 @@ internal enum class DiscoverSort(val labelRes: Int) {
     }
 }
 
+internal data class YearRange(val from: Int? = null, val to: Int? = null) {
+    val isAll: Boolean get() = from == null && to == null
+    fun label(): String = when {
+        isAll -> "All"
+        from != null && to != null && from == to -> from.toString()
+        from != null && to != null -> "$from — $to"
+        from != null -> "$from+"
+        else -> "≤$to"
+    }
+}
+
 internal data class DiscoverPage(val results: List<SearchResponse>, val hasMore: Boolean)
 
 /** TMDB supplies the catalogue; selecting a card always searches installed providers. */
@@ -73,13 +84,16 @@ internal class DiscoverRepository(
         language: DiscoverLanguage,
         rating: TmdbRatingFilter,
         genreIds: Set<Int>,
-        year: Int?,
+        yearFrom: Int?,
+        yearTo: Int?,
         sort: DiscoverSort,
         page: Int,
     ): DiscoverPage {
         require(page in 1..500)
         require(genreIds.all { it > 0 })
-        require(year == null || year in 1900..2100)
+        require(yearFrom == null || yearFrom in 1900..2100)
+        require(yearTo == null || yearTo in 1900..2100)
+        require(yearFrom == null || yearTo == null || yearFrom <= yearTo)
         val params = mutableMapOf(
             "language" to "en-US",
             "include_adult" to "false",
@@ -100,10 +114,12 @@ internal class DiscoverRepository(
             params["with_genres"] = genreIds.sorted().joinToString("|")
         }
         language.code?.let { params["with_original_language"] = it }
-        year?.let {
-            params[
-                if (type == DiscoverMediaType.SERIES) "first_air_date_year" else "primary_release_year"
-            ] = it.toString()
+        if (yearFrom != null || yearTo != null) {
+            val isSeries = type == DiscoverMediaType.SERIES
+            val gteKey = if (isSeries) "first_air_date.gte" else "primary_release_date.gte"
+            val lteKey = if (isSeries) "first_air_date.lte" else "primary_release_date.lte"
+            yearFrom?.let { params[gteKey] = "%04d-01-01".format(it) }
+            yearTo?.let { params[lteKey] = "%04d-12-31".format(it) }
         }
         val response = parseJson<DiscoverResponse>(request("/discover/${type.path}", params))
         return DiscoverPage(

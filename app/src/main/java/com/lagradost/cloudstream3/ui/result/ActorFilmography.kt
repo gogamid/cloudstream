@@ -25,6 +25,7 @@ import com.lagradost.cloudstream3.ui.BaseFragment
 import com.lagradost.cloudstream3.ui.discover.DiscoverLanguage
 import com.lagradost.cloudstream3.ui.discover.DiscoverSort
 import com.lagradost.cloudstream3.ui.discover.TmdbRatingFilter
+import com.lagradost.cloudstream3.ui.discover.YearRange
 import com.lagradost.cloudstream3.ui.quicksearch.QuickSearchFragment
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_LOAD
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_PLAY_FILE
@@ -77,7 +78,8 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
     private var languageFilter = DiscoverLanguage.ALL
     private var ratingFilter = TmdbRatingFilter.ALL
     private var selectedGenres: Set<String> = emptySet()
-    private var yearFilter: Int? = null
+    private var yearFrom: Int? = null
+    private var yearTo: Int? = null
     private var sortFilter = DiscoverSort.POPULAR
     private var availableGenres: List<String> = emptyList()
     private var hasLoaded = false
@@ -140,7 +142,12 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             it.name == savedInstanceState?.getString("filmography_rating")
         } ?: ratingFilter
         selectedGenres = savedInstanceState?.getStringArray("filmography_genres")?.toSet().orEmpty()
-        yearFilter = savedInstanceState?.getInt("filmography_year")?.takeIf { it > 0 }
+        yearFrom = savedInstanceState?.getInt("filmography_yearFrom")?.takeIf { it > 0 }
+        yearTo = savedInstanceState?.getInt("filmography_yearTo")?.takeIf { it > 0 }
+        // legacy single-year key
+        savedInstanceState?.getInt("filmography_year")?.takeIf { it > 0 }?.let {
+            if (yearFrom == null && yearTo == null) { yearFrom = it; yearTo = it }
+        }
         sortFilter = DiscoverSort.entries.firstOrNull {
             it.name == savedInstanceState?.getString("filmography_sort")
         } ?: sortFilter
@@ -258,22 +265,72 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         }
     }
 
-    private fun yearOptions(): List<Int?> {
-        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-        val distinct = allCredits.mapNotNull { it.year }.distinct().sortedDescending()
-        return listOf(null) + distinct.ifEmpty { (currentYear downTo 1960).toList().take(40) }
+    private fun yearRangeLabel(range: YearRange): String =
+        if (range.isAll) getString(R.string.discover_all) else range.label()
+
+    private fun yearPresets(): List<YearRange> {
+        val y = Calendar.getInstance().get(Calendar.YEAR)
+        return listOf(
+            YearRange(null, null),
+            YearRange(y, y),
+            YearRange(y - 1, y - 1),
+            YearRange(y - 4, y),
+            YearRange(2015, 2019),
+            YearRange(2010, 2019),
+            YearRange(2000, 2009),
+            YearRange(1990, 1999),
+            YearRange(1980, 1989),
+            YearRange(1970, 1979),
+        )
     }
 
     private fun showYearDialog() {
-        val options = yearOptions()
-        val names = options.map { it?.toString() ?: getString(R.string.discover_all) }.toTypedArray()
+        val presets = yearPresets()
+        val current = YearRange(yearFrom, yearTo)
+        val labels = presets.map { yearRangeLabel(it) }.toMutableList()
+        labels.add(getString(R.string.discover_year_custom))
+        val checked = presets.indexOf(current).takeIf { it >= 0 } ?: -1
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.discover_filter_year)
-            .setSingleChoiceItems(names, options.indexOf(yearFilter).takeIf { it >= 0 } ?: 0) { dialog, which ->
-                yearFilter = options[which]
-                dialog.dismiss()
-                updateChipBar()
-                applyFilter()
+            .setSingleChoiceItems(labels.toTypedArray(), checked) { dialog, which ->
+                if (which == presets.size) {
+                    dialog.dismiss()
+                    showCustomYearRangeDialog()
+                } else {
+                    val r = presets[which]
+                    yearFrom = r.from; yearTo = r.to
+                    dialog.dismiss()
+                    updateChipBar()
+                    applyFilter()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showCustomYearRangeDialog() {
+        val years: List<Int?> = listOf(null) + (Calendar.getInstance().get(Calendar.YEAR) downTo 1960).toList()
+        val names = years.map { it?.toString() ?: getString(R.string.discover_all) }.toTypedArray()
+        var pendingFrom = yearFrom
+        var pendingTo = yearTo
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.discover_year_from)
+            .setSingleChoiceItems(names, years.indexOf(pendingFrom).takeIf { it >= 0 } ?: 0) { dFrom, whichFrom ->
+                pendingFrom = years[whichFrom]
+                dFrom.dismiss()
+                AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.discover_year_to)
+                    .setSingleChoiceItems(names, years.indexOf(pendingTo).takeIf { it >= 0 } ?: 0) { dTo, whichTo ->
+                        pendingTo = years[whichTo]
+                        dTo.dismiss()
+                        var f = pendingFrom; var t = pendingTo
+                        if (f != null && t != null && f > t) { val tmp = f; f = t; t = tmp }
+                        yearFrom = f; yearTo = t
+                        updateChipBar()
+                        applyFilter()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -299,7 +356,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             languageFilter == DiscoverLanguage.ALL &&
             ratingFilter == TmdbRatingFilter.ALL &&
             selectedGenres.isEmpty() &&
-            yearFilter == null &&
+            yearFrom == null && yearTo == null &&
             sortFilter == DiscoverSort.POPULAR
 
     private fun resetFilters() {
@@ -308,7 +365,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         languageFilter = DiscoverLanguage.ALL
         ratingFilter = TmdbRatingFilter.ALL
         selectedGenres = emptySet()
-        yearFilter = null
+        yearFrom = null; yearTo = null
         sortFilter = DiscoverSort.POPULAR
         updateChipBar()
         applyFilter()
@@ -328,7 +385,8 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         else getString(R.string.discover_genres_selected, selectedGenres.size)
         setChip(binding.filmographyFilterGenres, getString(R.string.discover_filter_genres), genreValue)
         binding.filmographyFilterGenres.isEnabled = availableGenres.isNotEmpty()
-        setChip(binding.filmographyFilterYear, getString(R.string.discover_filter_year), yearFilter?.toString() ?: getString(R.string.discover_all))
+        val yearLabel = YearRange(yearFrom, yearTo).let { r -> if (r.isAll) getString(R.string.discover_all) else r.label() }
+        setChip(binding.filmographyFilterYear, getString(R.string.discover_filter_year), yearLabel)
         setChip(binding.filmographyFilterSort, getString(R.string.discover_filter_sort), getString(sortFilter.labelRes))
         binding.filmographyFilterReset.isVisible = !isDefault()
     }
@@ -342,7 +400,8 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             FilmographyFilter.SERIES -> allCredits.filter { it.type == TvType.TvSeries }
         }.filter { ratingFilter.matches(it.score) }
             .filter { languageFilter.code == null || it.originalLanguage == languageFilter.code }
-            .filter { yearFilter == null || it.year == yearFilter }
+            .filter { yearFrom == null || (it.year != null && it.year >= yearFrom!!) }
+            .filter { yearTo == null || (it.year != null && it.year <= yearTo!!) }
             .filter { selectedGenres.isEmpty() || it.genres?.any { g -> g in selectedGenres } == true }
 
         filtered = when (sortFilter) {
@@ -412,7 +471,8 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         outState.putString("filmography_language", languageFilter.name)
         outState.putString("filmography_rating", ratingFilter.name)
         outState.putStringArray("filmography_genres", selectedGenres.toTypedArray())
-        yearFilter?.let { outState.putInt("filmography_year", it) }
+        yearFrom?.let { outState.putInt("filmography_yearFrom", it) }
+        yearTo?.let { outState.putInt("filmography_yearTo", it) }
         outState.putString("filmography_sort", sortFilter.name)
         super.onSaveInstanceState(outState)
     }
