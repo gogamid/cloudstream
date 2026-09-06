@@ -30,109 +30,97 @@
             android:layout_height="48dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/home_expanded_hide"
-            android:nextFocusDown="@id/filmography_filter_all"
+            android:nextFocusDown="@id/filmography_filter_type"
             android:src="@drawable/ic_baseline_keyboard_arrow_down_24"
             app:tint="?attr/textColor" />
     </LinearLayout>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="4dp"
-        android:text="@string/actor_filmography_hint"
-        android:textColor="?attr/textColor" />
-
     <HorizontalScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fillViewport="false"
-        android:scrollbars="none">
-
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/filmography_filters"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="8dp"
-            app:selectionRequired="true"
-            app:singleSelection="true">
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/filmography_filter_all"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="true"
-                android:nextFocusDown="@id/filmography_rating_all"
-                android:text="@string/discover_all_types" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/filmography_filter_movies"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:nextFocusDown="@id/filmography_rating_all"
-                android:text="@string/discover_movies" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/filmography_filter_series"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:nextFocusDown="@id/filmography_rating_all"
-                android:text="@string/discover_series" />
-        </com.google.android.material.chip.ChipGroup>
-    </HorizontalScrollView>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:text="@string/discover_rating_label"
-        android:textColor="?attr/textColor" />
-
-    <HorizontalScrollView
+        android:id="@+id/filmography_filter_scroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:scrollbars="none">
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/filmography_ratings"
+        <LinearLayout
+            android:id="@+id/filmography_filters_bar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            app:singleLine="true"
-            app:singleSelection="true"
-            app:selectionRequired="true">
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="8dp">
             <com.google.android.material.chip.Chip
-                android:id="@+id/filmography_rating_all"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:id="@+id/filmography_filter_type"
+                style="@style/ChipFilled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checked="true"
+                android:layout_marginEnd="8dp"
+                android:checkable="false"
                 android:nextFocusDown="@id/filmography_results"
-                android:text="@string/discover_rating_all" />
+                app:ensureMinTouchTargetSize="false"
+                tools:text="All ▾" />
             <com.google.android.material.chip.Chip
-                android:id="@+id/filmography_rating_six"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:id="@+id/filmography_filter_language"
+                style="@style/ChipFilled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checked="false"
+                android:layout_marginEnd="8dp"
+                android:checkable="false"
                 android:nextFocusDown="@id/filmography_results"
-                android:text="@string/discover_rating_six" />
+                app:ensureMinTouchTargetSize="false"
+                tools:text="All ▾" />
             <com.google.android.material.chip.Chip
-                android:id="@+id/filmography_rating_seven"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:id="@+id/filmography_filter_rating"
+                style="@style/ChipFilled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checked="false"
+                android:layout_marginEnd="8dp"
+                android:checkable="false"
                 android:nextFocusDown="@id/filmography_results"
-                android:text="@string/discover_rating_seven" />
-        </com.google.android.material.chip.ChipGroup>
+                app:ensureMinTouchTargetSize="false"
+                tools:text="All ▾" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filmography_filter_genres"
+                style="@style/ChipFilled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:checkable="false"
+                android:nextFocusDown="@id/filmography_results"
+                app:ensureMinTouchTargetSize="false"
+                tools:text="Genres ▾" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filmography_filter_year"
+                style="@style/ChipFilled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:checkable="false"
+                android:nextFocusDown="@id/filmography_results"
+                app:ensureMinTouchTargetSize="false"
+                tools:text="All ▾" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filmography_filter_sort"
+                style="@style/ChipFilled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:checkable="false"
+                android:nextFocusDown="@id/filmography_results"
+                app:ensureMinTouchTargetSize="false"
+                tools:text="Popular ▾" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filmography_filter_reset"
+                style="@style/ChipFilled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="false"
+                android:nextFocusDown="@id/filmography_results"
+                android:text="@string/discover_reset"
+                android:visibility="gone"
+                app:ensureMinTouchTargetSize="false"
+                tools:visibility="visible" />
+        </LinearLayout>
     </HorizontalScrollView>
 
     <FrameLayout
@@ -145,7 +133,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:descendantFocusability="afterDescendants"
-            android:nextFocusUp="@id/filmography_rating_all"
+            android:nextFocusUp="@id/filmography_filters_bar"
             android:visibility="gone"
             tools:listitem="@layout/search_result_grid" />
 

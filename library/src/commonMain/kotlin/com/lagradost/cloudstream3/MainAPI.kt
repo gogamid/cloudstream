@@ -1419,6 +1419,9 @@ interface SearchResponse {
     var genres: List<String>?
         get() = null
         set(_) {}
+    var originalLanguage: String?
+        get() = null
+        set(_) {}
 }
 
 fun MainAPI.newTorrentSearchResponse(
@@ -1578,6 +1581,7 @@ constructor(
     override var posterHeaders: Map<String, String>? = null,
     override var score: Score? = null,
     override var genres: List<String>? = null,
+    override var originalLanguage: String? = null,
 ) : SearchResponse
 
 fun AnimeSearchResponse.addDubStatus(status: DubStatus, episodes: Int? = null) {
@@ -1674,6 +1678,7 @@ constructor(
     override var posterHeaders: Map<String, String>? = null,
     override var score: Score? = null,
     override var genres: List<String>? = null,
+    override var originalLanguage: String? = null,
 ) : SearchResponse {
     @Suppress("DEPRECATION_ERROR")
     @Deprecated(
@@ -1748,6 +1753,7 @@ constructor(
     override var posterHeaders: Map<String, String>? = null,
     override var score: Score? = null,
     override var genres: List<String>? = null,
+    override var originalLanguage: String? = null,
 ) : SearchResponse {
     @Suppress("DEPRECATION_ERROR")
     @Deprecated(

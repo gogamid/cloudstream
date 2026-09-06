@@ -62,6 +62,7 @@ internal data class TmdbTitle(
     @JsonProperty("popularity") @SerialName("popularity") val popularity: Double? = null,
     @JsonProperty("adult") @SerialName("adult") val adult: Boolean? = null,
     @JsonProperty("genre_ids") @SerialName("genre_ids") val genreIds: List<Int>? = null,
+    @JsonProperty("original_language") @SerialName("original_language") val originalLanguage: String? = null,
 ) {
     val displayTitle: String
         get() = listOf(title, name, originalTitle, originalName)
@@ -100,6 +101,7 @@ internal data class TmdbTitle(
                 score = rating
                 year = this@TmdbTitle.year
                 genres = resolveGenres(genreNames)
+                originalLanguage = this@TmdbTitle.originalLanguage?.takeIf { it.isNotBlank() }
             }
         } else {
             newMovieSearchResponse(
@@ -111,6 +113,7 @@ internal data class TmdbTitle(
                 score = rating
                 year = this@TmdbTitle.year
                 genres = resolveGenres(genreNames)
+                originalLanguage = this@TmdbTitle.originalLanguage?.takeIf { it.isNotBlank() }
             }
         }
     }
