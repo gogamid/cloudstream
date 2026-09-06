@@ -6,7 +6,7 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButton
+import com.google.android.material.chip.Chip
 import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.databinding.FragmentDiscoverBinding
 import com.lagradost.cloudstream3.ui.BaseFragment
@@ -83,9 +83,9 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         viewModel.state.observe(viewLifecycleOwner) { render(it) }
     }
 
-    private fun setDropdown(button: MaterialButton, filterName: String, value: String) {
-        button.text = getString(R.string.discover_dropdown_value, value)
-        button.contentDescription = "$filterName: $value"
+    private fun setDropdown(chip: Chip, filterName: String, value: String) {
+        chip.text = getString(R.string.discover_dropdown_value, value)
+        chip.contentDescription = "$filterName: $value"
     }
 
     private fun showTypeDialog() {

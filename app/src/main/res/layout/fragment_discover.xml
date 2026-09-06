@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -20,60 +21,66 @@
             android:paddingTop="8dp"
             android:paddingEnd="8dp"
             android:paddingBottom="8dp">
-            <com.google.android.material.button.MaterialButton
+            <com.google.android.material.chip.Chip
                 android:id="@+id/filter_type"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                style="@style/ChipFilled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
-                android:minWidth="0dp"
+                android:checkable="false"
                 android:nextFocusDown="@id/discover_results"
+                app:ensureMinTouchTargetSize="false"
                 tools:text="Movies ▾" />
-            <com.google.android.material.button.MaterialButton
+            <com.google.android.material.chip.Chip
                 android:id="@+id/filter_rating"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                style="@style/ChipFilled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
-                android:minWidth="0dp"
+                android:checkable="false"
                 android:nextFocusDown="@id/discover_results"
+                app:ensureMinTouchTargetSize="false"
                 tools:text="7+ ▾" />
-            <com.google.android.material.button.MaterialButton
+            <com.google.android.material.chip.Chip
                 android:id="@+id/filter_genres"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                style="@style/ChipFilled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
-                android:minWidth="0dp"
+                android:checkable="false"
                 android:nextFocusDown="@id/discover_results"
+                app:ensureMinTouchTargetSize="false"
                 tools:text="Genres ▾" />
-            <com.google.android.material.button.MaterialButton
+            <com.google.android.material.chip.Chip
                 android:id="@+id/filter_year"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                style="@style/ChipFilled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
-                android:minWidth="0dp"
+                android:checkable="false"
                 android:nextFocusDown="@id/discover_results"
+                app:ensureMinTouchTargetSize="false"
                 tools:text="All ▾" />
-            <com.google.android.material.button.MaterialButton
+            <com.google.android.material.chip.Chip
                 android:id="@+id/filter_sort"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                style="@style/ChipFilled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
-                android:minWidth="0dp"
+                android:checkable="false"
                 android:nextFocusDown="@id/discover_results"
+                app:ensureMinTouchTargetSize="false"
                 tools:text="Popular ▾" />
-            <com.google.android.material.button.MaterialButton
+            <com.google.android.material.chip.Chip
                 android:id="@+id/filter_reset"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
+                style="@style/ChipFilled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minWidth="0dp"
+                android:checkable="false"
                 android:nextFocusDown="@id/discover_results"
                 android:text="@string/discover_reset"
                 android:visibility="gone"
+                app:ensureMinTouchTargetSize="false"
                 tools:visibility="visible" />
         </LinearLayout>
     </HorizontalScrollView>
