@@ -274,7 +274,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             YearRange(null, null),
             YearRange(y, y),
             YearRange(y - 1, y - 1),
-            YearRange(y - 4, y),
+            YearRange(2020, 2029), // 2020s
             YearRange(2015, 2019),
             YearRange(2010, 2019),
             YearRange(2000, 2009),

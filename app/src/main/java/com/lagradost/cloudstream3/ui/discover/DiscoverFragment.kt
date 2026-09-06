@@ -174,7 +174,7 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
             YearRange(null, null), // All
             YearRange(y, y),
             YearRange(y - 1, y - 1),
-            YearRange(y - 4, y), // Last 5
+            YearRange(2020, 2029), // 2020s
             YearRange(2015, 2019),
             YearRange(2010, 2019),
             YearRange(2000, 2009),
