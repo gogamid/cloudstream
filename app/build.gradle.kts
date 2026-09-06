@@ -164,6 +164,10 @@ android {
     productFlavors {
         create("stable") {
             dimension = "state"
+            // ADB installs require a signature — use the debug keystore so
+            // stableRelease is installable alongside prerelease (beta) for
+            // local testing. Store release still uses its own key.
+            signingConfig = signingConfigs.getByName("debug")
         }
         create("prerelease") {
             dimension = "state"
