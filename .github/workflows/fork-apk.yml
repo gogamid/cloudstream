@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      FORK_STABLE_KEYSTORE_PATH: ${{ runner.temp }}/fork-stable.p12
+      FORK_STABLE_KEYSTORE_PATH: ${{ github.workspace }}/.signing/fork-stable.p12
       FORK_STABLE_STORE_PASSWORD: ${{ secrets.FORK_STABLE_STORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
@@ -35,6 +35,7 @@ jobs:
           test -n "$KEYSTORE_BASE64"
           test -n "$FORK_STABLE_STORE_PASSWORD"
           umask 077
+          mkdir -p "$(dirname "$FORK_STABLE_KEYSTORE_PATH")"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$FORK_STABLE_KEYSTORE_PATH"
           keytool -list -keystore "$FORK_STABLE_KEYSTORE_PATH" -storetype PKCS12 \
             -storepass:env FORK_STABLE_STORE_PASSWORD -alias fork-stable
