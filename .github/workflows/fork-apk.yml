@@ -37,12 +37,17 @@ jobs:
           ./gradlew :app:testPrereleaseDebugUnitTest \
             --tests 'com.lagradost.cloudstream3.ui.result.ActorFilmographyRepositoryTest' \
             --tests 'com.lagradost.cloudstream3.ui.discover.*' \
-            :app:lintPrereleaseDebug :app:assemblePrereleaseDebug
+            :app:lintPrereleaseDebug :app:assemblePrereleaseDebug :app:assembleStableRelease
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
           name: cloudstream-discover-apk
           path: app/build/outputs/apk/prerelease/debug/*.apk
+      - name: Upload stable APK (most performant, alongside beta)
+        uses: actions/upload-artifact@v7
+        with:
+          name: cloudstream-stable-apk
+          path: app/build/outputs/apk/stable/release/*.apk
           if-no-files-found: error
           retention-days: 30
       - name: Upload test and lint reports
