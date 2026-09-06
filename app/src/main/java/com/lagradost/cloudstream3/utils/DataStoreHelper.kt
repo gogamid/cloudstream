@@ -280,7 +280,7 @@ object DataStoreHelper {
         @Transient override val apiName: String = "",
         @Transient override var type: TvType? = null,
         @Transient override var posterUrl: String? = null,
-        @Transient open val year: Int? = null,
+        @Transient override var year: Int? = null,
         @Transient open val syncData: Map<String, String>? = null,
         @Transient override var quality: SearchQuality? = null,
         @Transient override var posterHeaders: Map<String, String>? = null,
