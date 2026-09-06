@@ -107,12 +107,13 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         val columns = context.getSpanCount()
         results.spanCount = columns
         val manager = results.layoutManager as? GridLayoutManager
+        // AutofitRecyclerView's custom manager only searches attached views
+        // on focus failure. Use the standard manager here so D-pad navigation
+        // lays out off-screen rows, without changing other screens.
         if (manager == null || manager::class != GridLayoutManager::class) {
-            if (manager == null || manager.spanCount != columns) {
-                results.layoutManager = GridLayoutManager(context, columns)
-            }
-        } else {
             results.layoutManager = GridLayoutManager(context, columns)
+        } else {
+            manager.spanCount = columns
         }
     }
 
