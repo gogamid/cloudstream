@@ -94,7 +94,11 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
                 viewModel.setGenre(selected?.tag as? Int)
             }
         }
-        binding.discoverMore.setOnClickListener { viewModel.loadMoreOrRetry() }
+        // No load-more/retry button: paging is automatic, errors retry by tapping
+        // the status text.
+        binding.discoverStatus.setOnClickListener {
+            if (viewModel.state.value?.error == true) viewModel.loadMoreOrRetry()
+        }
         viewModel.state.observe(viewLifecycleOwner) { render(it) }
     }
 
@@ -157,10 +161,8 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         binding.discoverStatus.setText(
             if (state.error) R.string.discover_error else R.string.discover_empty
         )
-        // Pagination is automatic on scroll/focus; the button is only an error retry.
-        binding.discoverMore.isVisible = state.error && !state.loading
-        binding.discoverMore.isEnabled = !state.loading
-        binding.discoverMore.setText(R.string.actor_filmography_retry)
+        binding.discoverStatus.isClickable = state.error
+        binding.discoverStatus.isFocusable = state.error
     }
 
     /** TV D-pad focus can land near the end without scrolling first, so prefetch

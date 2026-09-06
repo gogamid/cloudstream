@@ -138,7 +138,6 @@
             android:layout_height="match_parent"
             android:descendantFocusability="afterDescendants"
             android:nextFocusUp="@id/discover_genre_all"
-            android:nextFocusDown="@id/discover_more"
             android:clipToPadding="false"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
@@ -162,13 +161,4 @@
         android:textColor="?attr/textColor"
         android:visibility="gone" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/discover_more"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="8dp"
-        android:nextFocusUp="@id/discover_results"
-        android:text="@string/discover_load_more"
-        android:visibility="gone" />
 </LinearLayout>

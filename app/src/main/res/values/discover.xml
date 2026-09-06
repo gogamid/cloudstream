@@ -10,8 +10,7 @@
     <string name="discover_rating_six">6+</string>
     <string name="discover_rating_seven">7+</string>
     <string name="discover_all_genres">All genres</string>
-    <string name="discover_load_more">Load more</string>
     <string name="discover_empty">No titles found. Try changing your filters.</string>
-    <string name="discover_error">Could not load titles from TMDB. Please try again.</string>
+    <string name="discover_error">Could not load titles from TMDB. Tap to try again.</string>
     <string name="actor_filmography_no_matches">No titles match these filters.</string>
 </resources>
