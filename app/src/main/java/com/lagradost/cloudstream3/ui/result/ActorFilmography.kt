@@ -125,10 +125,10 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             }
         )
         binding.filmographyRatings.check(
-            when (ratingFilter) {
-                TmdbRatingFilter.ALL -> R.id.filmography_rating_all
-                TmdbRatingFilter.SIX -> R.id.filmography_rating_six
-                TmdbRatingFilter.SEVEN -> R.id.filmography_rating_seven
+            when {
+                ratingFilter.minimum >= TmdbRatingFilter.SEVEN.minimum -> R.id.filmography_rating_seven
+                ratingFilter.minimum >= TmdbRatingFilter.SIX.minimum -> R.id.filmography_rating_six
+                else -> R.id.filmography_rating_all
             }
         )
         binding.filmographyActor.text = arguments?.getString(ACTOR_NAME)

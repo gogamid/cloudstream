@@ -11,6 +11,12 @@ internal enum class DiscoverMediaType(val path: String) {
     MOVIES("movie"), SERIES("tv")
 }
 
+@Serializable
+internal data class TmdbGenre(
+    @JsonProperty("id") @SerialName("id") val id: Int = 0,
+    @JsonProperty("name") @SerialName("name") val name: String = "",
+)
+
 /** Every option maps to a single TMDB `sort_by` value so paging stays server-side. */
 internal enum class DiscoverSort(val labelRes: Int) {
     POPULAR(R.string.discover_sort_popular),
