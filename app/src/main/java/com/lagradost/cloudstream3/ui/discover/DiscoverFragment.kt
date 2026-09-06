@@ -5,11 +5,13 @@ import androidx.core.view.children
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.databinding.FragmentDiscoverBinding
 import com.lagradost.cloudstream3.ui.BaseFragment
 import com.lagradost.cloudstream3.ui.quicksearch.QuickSearchFragment
+import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_FOCUSED
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_LOAD
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_PLAY_FILE
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_SHOW_METADATA
@@ -49,11 +51,24 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
             setRecycledViewPool(SearchAdapter.sharedPool)
             adapter = SearchAdapter(this) { callback ->
                 when (callback.action) {
+                    SEARCH_ACTION_FOCUSED -> autoLoadIfNearEnd(callback.position)
                     SEARCH_ACTION_LOAD,
                     SEARCH_ACTION_SHOW_METADATA,
                     SEARCH_ACTION_PLAY_FILE -> QuickSearchFragment.pushSearch(activity, callback.card.name)
                 }
             }
+            addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    super.onScrolled(recyclerView, dx, dy)
+                    if (dy <= 0) return
+                    val manager = recyclerView.layoutManager as? GridLayoutManager ?: return
+                    val total = manager.itemCount
+                    if (total == 0) return
+                    if (manager.findLastVisibleItemPosition() >= total - manager.spanCount * 2) {
+                        viewModel.loadMoreOrRetry()
+                    }
+                }
+            })
         }
         binding.discoverMediaTypes.setOnCheckedStateChangeListener { _, ids ->
             if (!renderingFilters) {
@@ -121,18 +136,41 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         } finally {
             renderingFilters = false
         }
-        (binding.discoverResults.adapter as? SearchAdapter)?.submitList(state.results)
+        (binding.discoverResults.adapter as? SearchAdapter)?.submitList(state.results, Runnable {
+            val views = this.binding ?: return@Runnable
+            if (state.page <= 1) views.discoverResults.scrollToPosition(0)
+            // A short list that does not fill the screen cannot scroll, so keep
+            // paging until it does. Errors never auto-retry; use the retry button.
+            views.discoverResults.post {
+                val results = this.binding?.discoverResults ?: return@post
+                val current = viewModel.state.value
+                if (current != null && current.hasMore && !current.loading && !current.error &&
+                    !results.canScrollVertically(1)
+                ) {
+                    viewModel.loadMoreOrRetry()
+                }
+            }
+        })
         binding.discoverResults.isVisible = state.results.isNotEmpty()
         binding.discoverLoading.isVisible = state.loading
         binding.discoverStatus.isVisible = !state.loading && (state.error || state.results.isEmpty())
         binding.discoverStatus.setText(
             if (state.error) R.string.discover_error else R.string.discover_empty
         )
-        binding.discoverMore.isVisible = state.hasMore || state.error
+        // Pagination is automatic on scroll/focus; the button is only an error retry.
+        binding.discoverMore.isVisible = state.error && !state.loading
         binding.discoverMore.isEnabled = !state.loading
-        binding.discoverMore.setText(
-            if (state.error) R.string.actor_filmography_retry else R.string.discover_load_more
-        )
+        binding.discoverMore.setText(R.string.actor_filmography_retry)
+    }
+
+    /** TV D-pad focus can land near the end without scrolling first, so prefetch
+    when a focused card is within ~2 rows of the last item. */
+    private fun autoLoadIfNearEnd(position: Int) {
+        val recycler = binding?.discoverResults ?: return
+        val total = recycler.adapter?.itemCount ?: return
+        if (total == 0) return
+        val span = (recycler.layoutManager as? GridLayoutManager)?.spanCount ?: 1
+        if (position >= total - span * 2) viewModel.loadMoreOrRetry()
     }
 
     override fun onDestroyView() {
