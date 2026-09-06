@@ -70,6 +70,7 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
             })
         }
         binding.filterType.setOnClickListener { showTypeDialog() }
+        binding.filterLanguage.setOnClickListener { showLanguageDialog() }
         binding.filterRating.setOnClickListener { showRatingDialog() }
         binding.filterGenres.setOnClickListener { showGenresDialog() }
         binding.filterYear.setOnClickListener { showYearDialog() }
@@ -86,6 +87,20 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
     private fun setDropdown(chip: Chip, filterName: String, value: String) {
         chip.text = getString(R.string.discover_dropdown_value, value)
         chip.contentDescription = "$filterName: $value"
+    }
+
+    private fun showLanguageDialog() {
+        val options = DiscoverLanguage.entries.toList()
+        val current = viewModel.state.value?.language ?: DiscoverLanguage.ENGLISH
+        val names = options.map { getString(it.labelRes) }.toTypedArray()
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.discover_filter_language)
+            .setSingleChoiceItems(names, options.indexOf(current)) { dialog, which ->
+                viewModel.setLanguage(options[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun showTypeDialog() {
@@ -189,6 +204,7 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
             if (state.type == DiscoverMediaType.MOVIES) R.string.discover_movies else R.string.discover_series
         )
         setDropdown(binding.filterType, getString(R.string.discover_filter_type), typeName)
+        setDropdown(binding.filterLanguage, getString(R.string.discover_filter_language), getString(state.language.labelRes))
         setDropdown(binding.filterRating, getString(R.string.discover_filter_rating), ratingName(state.rating))
         val genreValue = if (state.genreIds.isEmpty()) getString(R.string.discover_filter_genres)
         else getString(R.string.discover_genres_selected, state.genreIds.size)

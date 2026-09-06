@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 
 internal data class DiscoverState(
     val type: DiscoverMediaType = DiscoverMediaType.MOVIES,
+    val language: DiscoverLanguage = DiscoverLanguage.ENGLISH,
     val rating: TmdbRatingFilter = TmdbRatingFilter.SEVEN,
     val genreIds: Set<Int> = emptySet(),
     val genres: List<TmdbGenre> = emptyList(),
@@ -28,6 +29,7 @@ internal data class DiscoverState(
 ) {
     val isDefault: Boolean
         get() = type == DiscoverMediaType.MOVIES &&
+            language == DiscoverLanguage.ENGLISH &&
             rating == TmdbRatingFilter.SEVEN &&
             genreIds.isEmpty() &&
             year == null &&
@@ -41,6 +43,9 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
             type = DiscoverMediaType.entries.firstOrNull {
                 it.name == savedState.get<String>("type")
             } ?: DiscoverMediaType.MOVIES,
+            language = DiscoverLanguage.entries.firstOrNull {
+                it.name == savedState.get<String>("language")
+            } ?: DiscoverLanguage.ENGLISH,
             rating = TmdbRatingFilter.entries.firstOrNull {
                 it.minimum == (savedState.get<Int>("rating") ?: TmdbRatingFilter.SEVEN.minimum)
             } ?: TmdbRatingFilter.SEVEN,
@@ -66,6 +71,14 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
         savedState.remove<IntArray>("genre_ids")
         // Genre catalogues differ between movies and series.
         mutableState.value = current.copy(type = type, genreIds = emptySet(), genres = emptyList())
+        load(reset = true)
+    }
+
+    fun setLanguage(language: DiscoverLanguage) {
+        val current = mutableState.value ?: return
+        if (current.language == language) return
+        savedState["language"] = language.name
+        mutableState.value = current.copy(language = language)
         load(reset = true)
     }
 
@@ -108,12 +121,14 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
         val current = mutableState.value ?: return
         if (current.isDefault) return
         savedState["type"] = DiscoverMediaType.MOVIES.name
+        savedState["language"] = DiscoverLanguage.ENGLISH.name
         savedState["rating"] = TmdbRatingFilter.SEVEN.minimum
         savedState.remove<IntArray>("genre_ids")
         savedState.remove<Int>("year")
         savedState["sort"] = DiscoverSort.POPULAR.name
         mutableState.value = current.copy(
             type = DiscoverMediaType.MOVIES,
+            language = DiscoverLanguage.ENGLISH,
             rating = TmdbRatingFilter.SEVEN,
             genreIds = emptySet(),
             genres = if (current.type == DiscoverMediaType.MOVIES) current.genres else emptyList(),
@@ -146,7 +161,7 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
                 val (genres, result) = withContext(Dispatchers.IO) {
                     val genres = snapshot.genres.ifEmpty { repository.genres(snapshot.type) }
                     genres to repository.discover(
-                        snapshot.type, snapshot.rating, snapshot.genreIds,
+                        snapshot.type, snapshot.language, snapshot.rating, snapshot.genreIds,
                         snapshot.year, snapshot.sort, page,
                     )
                 }

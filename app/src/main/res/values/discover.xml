@@ -10,6 +10,13 @@
     <string name="discover_rating_seven">7+</string>
     <string name="discover_all">All</string>
     <string name="discover_filter_type">Type</string>
+    <string name="discover_filter_language">Language</string>
+    <string name="discover_lang_all">All languages</string>
+    <string name="discover_lang_en">English</string>
+    <string name="discover_lang_ru">Russian</string>
+    <string name="discover_lang_de">German</string>
+    <string name="discover_lang_tr">Turkish</string>
+    <string name="discover_lang_az">Azerbaijani</string>
     <string name="discover_filter_rating">Rating</string>
     <string name="discover_filter_genres">Genres</string>
     <string name="discover_genres_selected">Genres (%1$d)</string>

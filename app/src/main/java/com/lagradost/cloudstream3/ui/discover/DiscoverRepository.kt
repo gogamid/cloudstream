@@ -11,6 +11,15 @@ internal enum class DiscoverMediaType(val path: String) {
     MOVIES("movie"), SERIES("tv")
 }
 
+internal enum class DiscoverLanguage(val code: String?, val labelRes: Int) {
+    ALL(null, R.string.discover_lang_all),
+    ENGLISH("en", R.string.discover_lang_en),
+    RUSSIAN("ru", R.string.discover_lang_ru),
+    GERMAN("de", R.string.discover_lang_de),
+    TURKISH("tr", R.string.discover_lang_tr),
+    AZERBAIJANI("az", R.string.discover_lang_az);
+}
+
 @Serializable
 internal data class TmdbGenre(
     @JsonProperty("id") @SerialName("id") val id: Int = 0,
@@ -61,6 +70,7 @@ internal class DiscoverRepository(
 
     suspend fun discover(
         type: DiscoverMediaType,
+        language: DiscoverLanguage,
         rating: TmdbRatingFilter,
         genreIds: Set<Int>,
         year: Int?,
@@ -89,6 +99,7 @@ internal class DiscoverRepository(
             // Pipe = OR: titles matching any selected genre.
             params["with_genres"] = genreIds.sorted().joinToString("|")
         }
+        language.code?.let { params["with_original_language"] = it }
         year?.let {
             params[
                 if (type == DiscoverMediaType.SERIES) "first_air_date_year" else "primary_release_year"
