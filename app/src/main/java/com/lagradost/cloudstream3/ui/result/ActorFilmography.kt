@@ -91,7 +91,14 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             skipCollapsed = true
             isFitToContents = false
             expandedOffset = 0
+            isDraggable = false
             state = BottomSheetBehavior.STATE_EXPANDED
+        }
+        // TV D-pad: ensure list can be focused and scrolled
+        binding?.filmographyResults?.apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isNestedScrollingEnabled = true
         }
     }
 
