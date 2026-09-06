@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.DialogInterface
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
@@ -84,9 +85,19 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
     override fun onStart() {
         super.onStart()
         view?.let { fixLayout(it) }
-        (dialog as? BottomSheetDialog)?.behavior?.apply {
-            skipCollapsed = true
-            state = BottomSheetBehavior.STATE_EXPANDED
+        (dialog as? BottomSheetDialog)?.let { d ->
+            d.behavior.apply {
+                skipCollapsed = true
+                isFitToContents = false
+                expandedOffset = 0
+                state = BottomSheetBehavior.STATE_EXPANDED
+            }
+            // Full-screen sheet — no 0.85 peek, covers status bar area.
+            d.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)?.let { sheet ->
+                sheet.layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
+                sheet.requestLayout()
+            }
+            d.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
     }
 
@@ -106,10 +117,15 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
 
     override fun fixLayout(view: View) {
         fixSystemBarsPadding(view)
+        // Full-screen filmography — was 0.85, now MATCH_PARENT via BottomSheet.
         view.layoutParams?.let {
-            it.height = (resources.displayMetrics.heightPixels * 0.85).toInt()
+            it.height = ViewGroup.LayoutParams.MATCH_PARENT
             view.layoutParams = it
         }
+        // Ensure dialog window also full-screen for true immersion.
+        (dialog as? BottomSheetDialog)?.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        )
         configureFilmographyGrid(view.context)
     }
 
