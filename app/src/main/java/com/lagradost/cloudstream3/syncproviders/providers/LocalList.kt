@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.syncproviders.AuthData
 import com.lagradost.cloudstream3.syncproviders.SyncAPI
 import com.lagradost.cloudstream3.syncproviders.SyncIdName
 import com.lagradost.cloudstream3.ui.WatchType
+import com.lagradost.cloudstream3.ui.discover.DiscoverWatchlist
 import com.lagradost.cloudstream3.ui.library.ListSorting
 import com.lagradost.cloudstream3.ui.settings.Globals.TV
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
@@ -31,12 +32,14 @@ class LocalList : SyncAPI() {
             getAllWatchStateIds()?.map { id ->
                 Pair(id, getResultWatchState(id))
             }
-        }?.distinctBy { it.first } ?: return null
+        }?.distinctBy { it.first }.orEmpty()
 
         val list = ioWork {
             val isTrueTv = isLayout(TV)
 
-            val baseMap = WatchType.entries.filter { it != WatchType.NONE }.associate {
+            val baseMap = mapOf(
+                R.string.discover_watchlist to DiscoverWatchlist.entries().map { it.toLibraryItem() }
+            ) + WatchType.entries.filter { it != WatchType.NONE }.associate {
                 // None is not something to display
                 it.stringRes to emptyList<SyncAPI.LibraryItem>()
             } + mapOf(
