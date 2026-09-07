@@ -83,6 +83,15 @@ android {
     }
 
     signingConfigs {
+        System.getenv("FORK_STABLE_KEYSTORE_PATH")?.let { path ->
+            create("forkStable") {
+                storeFile = file(path)
+                storeType = "PKCS12"
+                storePassword = requireNotNull(System.getenv("FORK_STABLE_STORE_PASSWORD"))
+                keyAlias = "fork-stable"
+                keyPassword = storePassword
+            }
+        }
         // We just use SIGNING_KEY_ALIAS here since it won't change
         // so won't kill the configuration cache.
         if (System.getenv("SIGNING_KEY_ALIAS") != null) {
@@ -164,6 +173,8 @@ android {
     productFlavors {
         create("stable") {
             dimension = "state"
+            // Fork CI restores a permanent key from secrets, never a generated debug key.
+            signingConfig = signingConfigs.findByName("forkStable")
         }
         create("prerelease") {
             dimension = "state"

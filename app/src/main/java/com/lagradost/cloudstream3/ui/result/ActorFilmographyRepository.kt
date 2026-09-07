@@ -2,39 +2,22 @@ package com.lagradost.cloudstream3.ui.result
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.Actor
-import com.lagradost.cloudstream3.MainAPI
-import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
-import com.lagradost.cloudstream3.TvType
-import com.lagradost.cloudstream3.app
-import com.lagradost.cloudstream3.newMovieSearchResponse
-import com.lagradost.cloudstream3.newTvSeriesSearchResponse
+import com.lagradost.cloudstream3.ui.discover.DiscoverMediaType
+import com.lagradost.cloudstream3.ui.discover.DiscoverRepository
+import com.lagradost.cloudstream3.ui.discover.TmdbMetadata
+import com.lagradost.cloudstream3.ui.discover.TmdbTitle
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /** TMDB supplies metadata only. Selected titles are searched through installed providers. */
 internal class ActorFilmographyRepository(
-    private val request: suspend (String, Map<String, String>) -> String = { path, params ->
-        val response = app.get(
-            url = "$TMDB_API_URL$path",
-            params = params + ("api_key" to TMDB_API_KEY),
-        )
-        check(response.isSuccessful) { "TMDB request failed (${response.code})" }
-        response.text
-    },
+    private val request: suspend (String, Map<String, String>) -> String = TmdbMetadata::request,
 ) {
-    private companion object {
-        // Same application key as the existing TmdbProvider; no new credentials are needed.
-        const val TMDB_API_KEY = "e6333b32409e02a4a6eba6fb7ff866bb"
-        const val TMDB_API_URL = "https://api.themoviedb.org/3"
-        const val TMDB_IMAGE_URL = "https://image.tmdb.org/t/p/w500"
-
-        val cards = object : MainAPI() {
-            override var name = "TMDB"
-        }
-    }
-
     @Serializable
     private data class TmdbPersonSearchResponse(
         @JsonProperty("results")
@@ -59,58 +42,8 @@ internal class ActorFilmographyRepository(
     private data class TmdbCombinedCredits(
         @JsonProperty("cast")
         @SerialName("cast")
-        val cast: List<TmdbCredit>? = null,
+        val cast: List<TmdbTitle>? = null,
     )
-
-    @Serializable
-    private data class TmdbCredit(
-        @JsonProperty("id")
-        @SerialName("id")
-        val id: Int? = null,
-        @JsonProperty("title")
-        @SerialName("title")
-        val title: String? = null,
-        @JsonProperty("original_title")
-        @SerialName("original_title")
-        val originalTitle: String? = null,
-        @JsonProperty("name")
-        @SerialName("name")
-        val name: String? = null,
-        @JsonProperty("original_name")
-        @SerialName("original_name")
-        val originalName: String? = null,
-        @JsonProperty("poster_path")
-        @SerialName("poster_path")
-        val posterPath: String? = null,
-        @JsonProperty("vote_average")
-        @SerialName("vote_average")
-        val voteAverage: Double? = null,
-        @JsonProperty("release_date")
-        @SerialName("release_date")
-        val releaseDate: String? = null,
-        @JsonProperty("first_air_date")
-        @SerialName("first_air_date")
-        val firstAirDate: String? = null,
-        @JsonProperty("media_type")
-        @SerialName("media_type")
-        val mediaType: String? = null,
-        @JsonProperty("popularity")
-        @SerialName("popularity")
-        val popularity: Double? = null,
-        @JsonProperty("adult")
-        @SerialName("adult")
-        val adult: Boolean? = null,
-    ) {
-        val displayTitle: String
-            get() = listOf(title, name, originalTitle, originalName)
-                .firstOrNull { !it.isNullOrBlank() }?.trim().orEmpty()
-
-        val year: Int?
-            get() = (releaseDate ?: firstAirDate)?.take(4)?.toIntOrNull()
-
-        val isTv: Boolean
-            get() = mediaType == "tv"
-    }
 
     suspend fun load(actor: Actor): List<SearchResponse> {
         val actorName = actor.name.trim().takeIf { it.isNotEmpty() } ?: return emptyList()
@@ -133,46 +66,28 @@ internal class ActorFilmographyRepository(
             request("/person/${person.id}/combined_credits", mapOf("language" to "en-US"))
         ).cast.orEmpty()
 
-        return credits.asSequence()
+        val filtered = credits.asSequence()
             .filter { it.mediaType == "movie" || it.mediaType == "tv" }
-            .filter { it.adult != true && (it.id ?: 0) > 0 && it.displayTitle.isNotBlank() }
+            .filter { it.usable }
             .distinctBy { it.mediaType to it.id }
             .sortedWith(
-                compareByDescending<TmdbCredit> { it.popularity ?: 0.0 }
+                compareByDescending<TmdbTitle> { it.popularity ?: 0.0 }
                     .thenByDescending { it.year ?: 0 }
             )
-            .map { it.toSearchResponse() }
             .toList()
-    }
+        if (filtered.isEmpty()) return emptyList()
 
-    private fun TmdbCredit.toSearchResponse(): SearchResponse = with(cards) {
-        // SearchAdapter compares IDs without the media type. Keep TV and movie IDs distinct.
-        val cardId = id?.let { if (isTv) -it else it }
-        if (isTv) {
-            newTvSeriesSearchResponse(
-                name = displayTitle,
-                url = "https://www.themoviedb.org/tv/$id",
-                type = TvType.TvSeries,
-                fix = false,
-            ) {
-                this.id = cardId
-                posterUrl = posterPath?.takeIf { it.isNotBlank() }?.let { "$TMDB_IMAGE_URL$it" }
-                score = Score.from10(voteAverage)
-                year = this@toSearchResponse.year
-            }
-        } else {
-            newMovieSearchResponse(
-                name = displayTitle,
-                url = "https://www.themoviedb.org/movie/$id",
-                type = TvType.Movie,
-                fix = false,
-            ) {
-                this.id = cardId
-                posterUrl = posterPath?.takeIf { it.isNotBlank() }?.let { "$TMDB_IMAGE_URL$it" }
-                score = Score.from10(voteAverage)
-                year = this@toSearchResponse.year
-            }
+        // Combined credits mix movies and series, so both catalogues are needed
+        // for the poster genre strip. Fetch is skipped for empty results to keep
+        // fast paths and existing tests network-light.
+        val genreRepo = DiscoverRepository(request)
+        val catalogue = coroutineScope {
+            val movies = async(Dispatchers.IO) { genreRepo.genres(DiscoverMediaType.MOVIES) }
+            val series = async(Dispatchers.IO) { genreRepo.genres(DiscoverMediaType.SERIES) }
+            (movies.await() + series.await()).associate { it.id to it.name }
         }
+
+        return filtered.map { it.toSearchResponse(genreNames = catalogue) }
     }
 
     private fun String?.imageFileName(): String? = this
