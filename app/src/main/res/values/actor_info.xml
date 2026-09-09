@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="actor_info_loading">Loading actor information…</string>
+    <string name="actor_info_missing">No matching person found on TMDB.</string>
+    <string name="actor_info_error">Could not load actor information. Go back and try again.</string>
+    <string name="actor_info_no_biography">No biography available.</string>
+    <string name="actor_info_born">Born: %1$s</string>
+    <string name="actor_info_died">Died: %1$s</string>
+    <string name="actor_info_age">Age: %1$d</string>
+    <string name="actor_info_age_at_death">Age at death: %1$d</string>
+    <string name="actor_info_birthplace">Birthplace: %1$s</string>
+</resources>
