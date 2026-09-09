@@ -20,9 +20,8 @@
         android:focusable="true">
         <TextView
             android:id="@+id/actor_info_text"
+            style="@style/PreviewDescriptionText"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="?attr/textColor"
-            android:textSize="16sp" />
+            android:layout_height="wrap_content" />
     </ScrollView>
 </LinearLayout>

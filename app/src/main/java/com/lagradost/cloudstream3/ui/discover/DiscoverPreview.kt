@@ -1,5 +1,8 @@
 package com.lagradost.cloudstream3.ui.discover
 
+import android.view.LayoutInflater
+import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
+import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -29,8 +32,10 @@ internal object DiscoverPreview {
 
     fun show(fragment: Fragment, card: SearchResponse) {
         val context = fragment.context ?: return
-        val binding = DialogDiscoverPreviewBinding.inflate(fragment.layoutInflater)
-        val dialog = AlertDialog.Builder(context).setTitle(card.name).setView(binding.root).create()
+        val builder = AlertDialog.Builder(context, R.style.AlertDialogCustom)
+        val binding = DialogDiscoverPreviewBinding.inflate(LayoutInflater.from(builder.context))
+        if (isLayout(PHONE)) binding.previewOverview.textSize = 15f
+        val dialog = builder.setTitle(card.name).setView(binding.root).create()
         val tv = card.type == TvType.TvSeries
         val saved = DiscoverWatchlist.entries().firstOrNull { it.url == card.url }
         val metadata = listOfNotNull(

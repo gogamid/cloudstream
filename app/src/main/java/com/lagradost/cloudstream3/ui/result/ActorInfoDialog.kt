@@ -3,6 +3,9 @@ package com.lagradost.cloudstream3.ui.result
 import android.app.Dialog
 import android.content.Context
 import android.os.Bundle
+import android.view.LayoutInflater
+import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
+import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentActivity
@@ -39,10 +42,12 @@ class ActorInfoDialog : DialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val name = arguments?.getString("name").orEmpty()
         val image = arguments?.getString("image")
-        val binding = DialogActorInfoBinding.inflate(layoutInflater)
+        val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+        val binding = DialogActorInfoBinding.inflate(LayoutInflater.from(builder.context))
+        if (isLayout(PHONE)) binding.actorInfoText.textSize = 15f
         binding.actorInfoPortrait.loadImage(image)
         binding.actorInfoText.setText(R.string.actor_info_loading)
-        val dialog = AlertDialog.Builder(requireContext()).setTitle(name).setView(binding.root).create()
+        val dialog = builder.setTitle(name).setView(binding.root).create()
         dialog.setOnShowListener { binding.actorInfoScroll.requestFocus() }
         job = lifecycleScope.launch {
             try {
