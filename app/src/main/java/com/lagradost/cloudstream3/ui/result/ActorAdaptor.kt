@@ -1,7 +1,5 @@
 package com.lagradost.cloudstream3.ui.result
 
-import android.app.SearchManager
-import android.content.Intent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -17,8 +15,6 @@ import com.lagradost.cloudstream3.ui.BaseDiffCallback
 import com.lagradost.cloudstream3.ui.NoStateAdapter
 import com.lagradost.cloudstream3.ui.ViewHolderState
 import com.lagradost.cloudstream3.ui.newSharedPool
-import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
-import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.utils.ImageLoader.loadImage
 
 class ActorAdaptor(
@@ -101,20 +97,8 @@ class ActorAdaptor(
                 }
 
                 itemView.setOnLongClickListener {
-                    if (item.voiceActor != null) {
-                        inverted[item] = !isInverted
-                        this.onUpdateContent(holder, item, position)
-                    } else if (isLayout(PHONE)) {
-                        Intent(Intent.ACTION_WEB_SEARCH).apply {
-                            putExtra(SearchManager.QUERY, item.actor.name)
-                        }.also { intent ->
-                            itemView.context.packageManager?.let { pm ->
-                                if (intent.resolveActivity(pm) != null) {
-                                    itemView.context.startActivity(intent)
-                                }
-                            }
-                        }
-                    }
+                    // Match single-click identity: real performer, not anime character.
+                    ActorInfoDialog.show(itemView.context, item.voiceActor ?: item.actor)
                     true
                 }
 

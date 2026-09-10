@@ -45,8 +45,8 @@ internal class ActorFilmographyRepository(
         val cast: List<TmdbTitle>? = null,
     )
 
-    suspend fun load(actor: Actor): List<SearchResponse> {
-        val actorName = actor.name.trim().takeIf { it.isNotEmpty() } ?: return emptyList()
+    private suspend fun resolvePersonId(actor: Actor): Int? {
+        val actorName = actor.name.trim().takeIf { it.isNotEmpty() } ?: return null
         val people = parseJson<TmdbPersonSearchResponse>(
             request(
                 "/search/person",
@@ -60,10 +60,19 @@ internal class ActorFilmographyRepository(
             imageFile != null && it.profilePath.imageFileName() == imageFile
         } ?: people.firstOrNull {
             it.name.equals(actorName, ignoreCase = true)
-        } ?: people.firstOrNull() ?: return emptyList()
+        } ?: people.firstOrNull()
+        return person?.id
+    }
 
+    suspend fun details(actor: Actor): ActorDetails? {
+        val id = resolvePersonId(actor) ?: return null
+        return parseJson<ActorDetails>(request("/person/$id", mapOf("language" to "en-US")))
+    }
+
+    suspend fun load(actor: Actor): List<SearchResponse> {
+        val id = resolvePersonId(actor) ?: return emptyList()
         val credits = parseJson<TmdbCombinedCredits>(
-            request("/person/${person.id}/combined_credits", mapOf("language" to "en-US"))
+            request("/person/$id/combined_credits", mapOf("language" to "en-US"))
         ).cast.orEmpty()
 
         val filtered = credits.asSequence()

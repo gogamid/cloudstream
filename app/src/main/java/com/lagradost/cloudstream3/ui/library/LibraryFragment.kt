@@ -43,6 +43,8 @@ import com.lagradost.cloudstream3.utils.txt
 import com.lagradost.cloudstream3.ui.BaseFragment
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_LOAD
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_SHOW_METADATA
+import com.lagradost.cloudstream3.ui.discover.DiscoverWatchlist
+import com.lagradost.cloudstream3.ui.discover.DiscoverPreview
 import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
 import com.lagradost.cloudstream3.ui.settings.Globals.isLandscape
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
@@ -134,6 +136,9 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
         binding: FragmentLibraryBinding,
         savedInstanceState: Bundle?
     ) {
+        if (savedInstanceState == null && libraryViewModel.currentSyncApi?.syncIdName == SyncIdName.LocalList) {
+            libraryViewModel.switchPage(0)
+        }
         binding.sortFab.setOnClickListener(sortChangeClickListener)
         binding.librarySort.setOnClickListener(sortChangeClickListener)
 
@@ -302,6 +307,10 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
 
             when (searchClickCallback.action) {
                 SEARCH_ACTION_SHOW_METADATA -> {
+                    if (DiscoverWatchlist.isItem(searchClickCallback.card)) {
+                        DiscoverPreview.show(this, searchClickCallback.card)
+                        return@callback
+                    }
                     (activity as? MainActivity)?.loadPopup(
                         searchClickCallback.card,
                         load = false
@@ -497,6 +506,10 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
         syncId: String,
         card: SearchResponse
     ) {
+        if (DiscoverWatchlist.isItem(card)) {
+            QuickSearchFragment.pushSearch(activity, card.name)
+            return
+        }
         // This basically first selects the individual opener and if that is default then
         // selects the whole list opener
         val savedListSelection =

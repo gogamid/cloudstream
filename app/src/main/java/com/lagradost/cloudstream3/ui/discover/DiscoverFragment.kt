@@ -51,8 +51,8 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
             adapter = SearchAdapter(this) { callback ->
                 when (callback.action) {
                     SEARCH_ACTION_FOCUSED -> autoLoadIfNearEnd(callback.position)
+                    SEARCH_ACTION_SHOW_METADATA -> DiscoverPreview.show(this@DiscoverFragment, callback.card)
                     SEARCH_ACTION_LOAD,
-                    SEARCH_ACTION_SHOW_METADATA,
                     SEARCH_ACTION_PLAY_FILE -> QuickSearchFragment.pushSearch(activity, callback.card.name)
                 }
             }

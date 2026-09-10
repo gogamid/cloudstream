@@ -37,4 +37,13 @@
     <string name="discover_empty">No titles found. Try changing your filters.</string>
     <string name="discover_error">Could not load titles from TMDB. Tap to try again.</string>
     <string name="actor_filmography_no_matches">No titles match these filters.</string>
+    <string name="discover_watchlist">Discover Watchlist</string>
+    <string name="discover_watchlist_add">Add to Discover Watchlist</string>
+    <string name="discover_watchlist_remove">Remove from Discover Watchlist</string>
+    <string name="discover_search_providers">Search providers</string>
+    <string name="discover_preview_loading">Loading synopsis…</string>
+    <string name="discover_preview_no_overview">No synopsis available.</string>
+    <string name="discover_preview_error">Could not load synopsis. You can still save this title or search providers.</string>
+    <string name="discover_preview_runtime">%1$d min</string>
+    <string name="discover_preview_seasons">Seasons: %1$d</string>
 </resources>
