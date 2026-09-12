@@ -113,7 +113,9 @@ object BackupUtils {
     )
 
     /** false if key should not be contained in backup */
-    private fun String.isTransferable(): Boolean {
+    // Profile-scoped discover_watchlist JSON (watchlist/completed/ignored) is
+    // intentionally transferable, alongside ordinary provider bookmarks.
+    internal fun String.isTransferable(): Boolean {
         return !nonTransferableKeys.any { this.contains(it) }
     }
 

@@ -51,7 +51,9 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
             adapter = SearchAdapter(this) { callback ->
                 when (callback.action) {
                     SEARCH_ACTION_FOCUSED -> autoLoadIfNearEnd(callback.position)
-                    SEARCH_ACTION_SHOW_METADATA -> DiscoverPreview.show(this@DiscoverFragment, callback.card)
+                    SEARCH_ACTION_SHOW_METADATA -> DiscoverPreview.show(this@DiscoverFragment, callback.card) {
+                        viewModel.state.value?.let(::render)
+                    }
                     SEARCH_ACTION_LOAD,
                     SEARCH_ACTION_PLAY_FILE -> QuickSearchFragment.pushSearch(activity, callback.card.name)
                 }
@@ -272,7 +274,15 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         setDropdown(binding.filterSort, getString(R.string.discover_filter_sort), getString(state.sort.labelRes))
         binding.filterReset.isVisible = !state.isDefault
 
-        (binding.discoverResults.adapter as? SearchAdapter)?.submitList(state.results, Runnable {
+        val entries = DiscoverWatchlist.allEntries()
+        val ignored = entries.filter { it.status == DiscoverWatchlist.Status.IGNORED }.map { it.url }.toSet()
+        val visible = state.results.filterNot { it.url in ignored }
+        val adapter = binding.discoverResults.adapter as? SearchAdapter
+        val completed = entries.filter { it.status == DiscoverWatchlist.Status.COMPLETED }.map { it.url }.toSet()
+        val changed = adapter?.completedUrls != completed
+        adapter?.completedUrls = completed
+        adapter?.submitList(visible, Runnable {
+            if (changed) adapter.notifyItemRangeChanged(0, adapter.itemCount)
             val views = this.binding ?: return@Runnable
             if (state.page <= 1) views.discoverResults.scrollToPosition(0)
             // A short list that does not fill the screen cannot scroll, so keep
@@ -287,9 +297,11 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
                 }
             }
         })
-        binding.discoverResults.isVisible = state.results.isNotEmpty()
+        // Keep the RecyclerView measurable even when a whole page was ignored,
+        // so short-list auto-paging can continue through server pages.
+        binding.discoverResults.isVisible = visible.isNotEmpty() || state.hasMore
         binding.discoverLoading.isVisible = state.loading
-        binding.discoverStatus.isVisible = !state.loading && (state.error || state.results.isEmpty())
+        binding.discoverStatus.isVisible = !state.loading && (state.error || (visible.isEmpty() && !state.hasMore))
         binding.discoverStatus.setText(
             if (state.error) R.string.discover_error else R.string.discover_empty
         )
@@ -305,6 +317,11 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         if (total == 0) return
         val span = (recycler.layoutManager as? GridLayoutManager)?.spanCount ?: 1
         if (position >= total - span * 2) viewModel.loadMoreOrRetry()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.state.value?.let(::render)
     }
 
     override fun onDestroyView() {

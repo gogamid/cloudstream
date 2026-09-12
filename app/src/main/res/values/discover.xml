@@ -46,4 +46,9 @@
     <string name="discover_preview_error">Could not load synopsis. You can still save this title or search providers.</string>
     <string name="discover_preview_runtime">%1$d min</string>
     <string name="discover_preview_seasons">Seasons: %1$d</string>
+    <string name="discover_completed_add">Mark as completed</string>
+    <string name="discover_completed_remove">Mark as not completed</string>
+    <string name="discover_ignore">Ignore — hide from Discover</string>
+    <string name="discover_unignore">Stop ignoring</string>
+    <string name="discover_ignored">Ignored</string>
 </resources>

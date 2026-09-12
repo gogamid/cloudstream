@@ -1,5 +1,7 @@
 package com.lagradost.cloudstream3.ui.search
 
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -48,6 +50,10 @@ class SearchAdapter(
 
     var hasNext: Boolean = false
 
+    // Opt-in for Discover only; never dims other screens or the focus outline.
+    var completedUrls: Set<String> = emptySet()
+    private val completedFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0f) })
+
     private val coverRatio = if(isHorizontal) 1.8 else 0.68
 
     private val coverHeight: Int get() = (resView.itemWidth / coverRatio).roundToInt()
@@ -95,5 +101,10 @@ class SearchAdapter(
             }
         }
         SearchResultBuilder.bind(clickCallback, item, position, holder.view.root)
+        imageView?.apply {
+            val completed = item.url in completedUrls
+            colorFilter = if (completed) completedFilter else null
+            alpha = if (completed) 0.45f else 1f
+        }
     }
 }

@@ -50,6 +50,24 @@
         android:layout_height="wrap_content"
         android:checkable="false"
         android:nextFocusUp="@id/preview_scroll"
+        android:nextFocusDown="@id/preview_completed"
+        app:ensureMinTouchTargetSize="false" />
+    <com.google.android.material.chip.Chip
+        android:id="@+id/preview_completed"
+        style="@style/ChipFilled"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:checkable="false"
+        android:nextFocusUp="@id/preview_watchlist"
+        android:nextFocusDown="@id/preview_ignore"
+        app:ensureMinTouchTargetSize="false" />
+    <com.google.android.material.chip.Chip
+        android:id="@+id/preview_ignore"
+        style="@style/ChipFilled"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:checkable="false"
+        android:nextFocusUp="@id/preview_completed"
         android:nextFocusDown="@id/preview_search"
         app:ensureMinTouchTargetSize="false" />
     <com.google.android.material.chip.Chip
@@ -58,7 +76,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:checkable="false"
-        android:nextFocusUp="@id/preview_watchlist"
+        android:nextFocusUp="@id/preview_ignore"
         android:text="@string/discover_search_providers"
         app:ensureMinTouchTargetSize="false" />
 </LinearLayout>

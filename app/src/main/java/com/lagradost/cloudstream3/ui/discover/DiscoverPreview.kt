@@ -30,14 +30,14 @@ internal object DiscoverPreview {
         @JsonProperty("number_of_seasons") @SerialName("number_of_seasons") val seasons: Int? = null,
     )
 
-    fun show(fragment: Fragment, card: SearchResponse) {
+    fun show(fragment: Fragment, card: SearchResponse, onChanged: () -> Unit = {}) {
         val context = fragment.context ?: return
         val builder = AlertDialog.Builder(context, R.style.AlertDialogCustom)
         val binding = DialogDiscoverPreviewBinding.inflate(LayoutInflater.from(builder.context))
         if (isLayout(PHONE)) binding.previewOverview.textSize = 15f
         val dialog = builder.setTitle(card.name).setView(binding.root).create()
         val tv = card.type == TvType.TvSeries
-        val saved = DiscoverWatchlist.entries().firstOrNull { it.url == card.url }
+        val saved = DiscoverWatchlist.allEntries().firstOrNull { it.url == card.url }
         val metadata = listOfNotNull(
             (card.year ?: saved?.year)?.toString(),
             context.getString(if (tv) R.string.discover_series else R.string.discover_movies),
@@ -49,9 +49,25 @@ internal object DiscoverPreview {
         binding.previewOverview.setText(R.string.discover_preview_loading)
         binding.previewWatchlist.setText(if (DiscoverWatchlist.contains(card))
             R.string.discover_watchlist_remove else R.string.discover_watchlist_add)
-        binding.previewWatchlist.setOnClickListener {
-            DiscoverWatchlist.toggle(card)
+        fun change(status: DiscoverWatchlist.Status?) {
+            DiscoverWatchlist.setStatus(card, status)
             dialog.dismiss()
+            onChanged()
+        }
+        binding.previewWatchlist.setOnClickListener {
+            change(if (DiscoverWatchlist.contains(card)) null else DiscoverWatchlist.Status.WATCHLIST)
+        }
+        binding.previewCompleted.setText(if (saved?.status == DiscoverWatchlist.Status.COMPLETED)
+            R.string.discover_completed_remove else R.string.discover_completed_add)
+        binding.previewCompleted.setOnClickListener {
+            change(if (DiscoverWatchlist.status(card) == DiscoverWatchlist.Status.COMPLETED)
+                null else DiscoverWatchlist.Status.COMPLETED)
+        }
+        binding.previewIgnore.setText(if (saved?.status == DiscoverWatchlist.Status.IGNORED)
+            R.string.discover_unignore else R.string.discover_ignore)
+        binding.previewIgnore.setOnClickListener {
+            change(if (DiscoverWatchlist.status(card) == DiscoverWatchlist.Status.IGNORED)
+                null else DiscoverWatchlist.Status.IGNORED)
         }
         binding.previewSearch.setOnClickListener {
             dialog.dismiss()

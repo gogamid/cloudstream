@@ -74,7 +74,11 @@ class LocalList : SyncAPI() {
                 baseMap + watchStatusMap + subscriptionsMap + favoritesMap
             }
 
-            result
+            result + mapOf(
+                WatchType.COMPLETED.stringRes to (result[WatchType.COMPLETED.stringRes].orEmpty() +
+                    DiscoverWatchlist.entries(DiscoverWatchlist.Status.COMPLETED).map { it.toLibraryItem() }),
+                R.string.discover_ignored to DiscoverWatchlist.entries(DiscoverWatchlist.Status.IGNORED).map { it.toLibraryItem() },
+            )
         }
 
         return LibraryMetadata(
