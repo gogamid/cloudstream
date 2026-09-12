@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.core.view.doOnAttach
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView.OnFlingListener
+import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.appbar.AppBarLayout
 import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.databinding.LibraryViewpagerPageBinding
@@ -77,6 +78,13 @@ class ViewpagerAdapter(
         binding.pageRecyclerview.tag = position
         binding.pageRecyclerview.apply {
             spanCount = binding.root.context.getSpanCount()
+            if (isLayout(TV or EMULATOR)) {
+                // Standard focus search lays out off-screen rows for remote Down.
+                val manager = layoutManager as? GridLayoutManager
+                if (manager == null || manager::class != GridLayoutManager::class) {
+                    layoutManager = GridLayoutManager(context, spanCount)
+                } else manager.spanCount = spanCount
+            }
             if (adapter == null) { //  || rebind
                 // Only add the items after it has been attached since the items rely on ItemWidth
                 // Which is only determined after the recyclerview is attached.

@@ -37,9 +37,9 @@ class LocalList : SyncAPI() {
         val list = ioWork {
             val isTrueTv = isLayout(TV)
 
-            val baseMap = mapOf(
-                R.string.discover_watchlist to DiscoverWatchlist.entries().map { it.toLibraryItem() }
-            ) + WatchType.entries.filter { it != WatchType.NONE }.associate {
+            val baseMap = (listOf(WatchType.PLANTOWATCH) + WatchType.entries.filter {
+                it != WatchType.NONE && it != WatchType.PLANTOWATCH
+            }).associate {
                 // None is not something to display
                 it.stringRes to emptyList<SyncAPI.LibraryItem>()
             } + mapOf(
@@ -75,9 +75,12 @@ class LocalList : SyncAPI() {
             }
 
             result + mapOf(
+                WatchType.PLANTOWATCH.stringRes to (result[WatchType.PLANTOWATCH.stringRes].orEmpty() +
+                    DiscoverWatchlist.entries().map { it.toLibraryItem() }),
                 WatchType.COMPLETED.stringRes to (result[WatchType.COMPLETED.stringRes].orEmpty() +
                     DiscoverWatchlist.entries(DiscoverWatchlist.Status.COMPLETED).map { it.toLibraryItem() }),
-                R.string.discover_ignored to DiscoverWatchlist.entries(DiscoverWatchlist.Status.IGNORED).map { it.toLibraryItem() },
+                WatchType.DROPPED.stringRes to (result[WatchType.DROPPED.stringRes].orEmpty() +
+                    DiscoverWatchlist.entries(DiscoverWatchlist.Status.IGNORED).map { it.toLibraryItem() }),
             )
         }
 

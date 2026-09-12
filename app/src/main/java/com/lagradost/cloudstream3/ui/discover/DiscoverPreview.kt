@@ -47,8 +47,9 @@ internal object DiscoverPreview {
         binding.previewMetadata.text = metadata
         binding.previewPoster.loadImage(card.posterUrl)
         binding.previewOverview.setText(R.string.discover_preview_loading)
-        binding.previewWatchlist.setText(if (DiscoverWatchlist.contains(card))
-            R.string.discover_watchlist_remove else R.string.discover_watchlist_add)
+        fun label(res: Int, status: DiscoverWatchlist.Status) =
+            (if (saved?.status == status) "✓ " else "") + context.getString(res)
+        binding.previewWatchlist.text = label(R.string.type_plan_to_watch, DiscoverWatchlist.Status.WATCHLIST)
         fun change(status: DiscoverWatchlist.Status?) {
             DiscoverWatchlist.setStatus(card, status)
             dialog.dismiss()
@@ -57,14 +58,12 @@ internal object DiscoverPreview {
         binding.previewWatchlist.setOnClickListener {
             change(if (DiscoverWatchlist.contains(card)) null else DiscoverWatchlist.Status.WATCHLIST)
         }
-        binding.previewCompleted.setText(if (saved?.status == DiscoverWatchlist.Status.COMPLETED)
-            R.string.discover_completed_remove else R.string.discover_completed_add)
+        binding.previewCompleted.text = label(R.string.type_completed, DiscoverWatchlist.Status.COMPLETED)
         binding.previewCompleted.setOnClickListener {
             change(if (DiscoverWatchlist.status(card) == DiscoverWatchlist.Status.COMPLETED)
                 null else DiscoverWatchlist.Status.COMPLETED)
         }
-        binding.previewIgnore.setText(if (saved?.status == DiscoverWatchlist.Status.IGNORED)
-            R.string.discover_unignore else R.string.discover_ignore)
+        binding.previewIgnore.text = label(R.string.type_dropped, DiscoverWatchlist.Status.IGNORED)
         binding.previewIgnore.setOnClickListener {
             change(if (DiscoverWatchlist.status(card) == DiscoverWatchlist.Status.IGNORED)
                 null else DiscoverWatchlist.Status.IGNORED)
