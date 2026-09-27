@@ -505,6 +505,9 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         )
 
         val binding = SubtitleOffsetBinding.inflate(LayoutInflater.from(ctx), null, false)
+        binding.subtitleOffsetInput.nextFocusDownId = R.id.apply_btt
+        binding.subtitleOffsetInput.nextFocusUpId = R.id.subtitle_offset_subtract
+        com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
 
         // Use dialog as opposed to alertdialog to get fullscreen
         val dialog = Dialog(ctx, R.style.DialogFullscreenPlayer).apply {

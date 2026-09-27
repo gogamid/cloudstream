@@ -189,6 +189,7 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
             }
             searchText.setOnKeyListener(downToTabs)
             searchText.nextFocusLeftId = R.id.list_selector
+            binding.mainSearch.nextFocusDownId = R.id.library_tab_layout
             listOf(binding.mainSearch, binding.listSelector, binding.providerSelector,
                 binding.librarySort, binding.libraryRandomButtonTv).forEach { it?.setOnKeyListener(downToTabs) }
             requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {

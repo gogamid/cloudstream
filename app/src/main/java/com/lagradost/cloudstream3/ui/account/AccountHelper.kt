@@ -51,6 +51,7 @@ object AccountHelper {
         accountDeleteCallback: (DataStoreHelper.Account) -> Unit
     ) {
         val binding = AccountEditDialogBinding.inflate(LayoutInflater.from(context), null, false)
+        com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
         val builder = AlertDialog.Builder(context, R.style.AlertDialogCustom)
             .setView(binding.root)
 
@@ -169,6 +170,7 @@ object AccountHelper {
         binding.editProfilePhotoButton.setOnClickListener {
             val bottomSheetDialog = BottomSheetDialog(context)
             val sheetBinding = BottomInputDialogBinding.inflate(LayoutInflater.from(context))
+            com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(sheetBinding.root, dialog = true)
             bottomSheetDialog.setContentView(sheetBinding.root)
             bottomSheetDialog.show()
 
@@ -237,6 +239,7 @@ object AccountHelper {
         }
 
         val binding = LockPinDialogBinding.inflate(LayoutInflater.from(context))
+        com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
 
         val isPinSet = currentPin != null
         val isNewPin = editAccount && !isPinSet

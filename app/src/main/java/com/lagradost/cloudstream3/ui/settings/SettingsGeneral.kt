@@ -237,6 +237,7 @@ class SettingsGeneral : BasePreferenceFragmentCompat() {
                 val provider = providers.getOrNull(selection) ?: return@showDialog
 
                 val binding : AddSiteInputBinding = AddSiteInputBinding.inflate(layoutInflater,null,false)
+                com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
 
                 val builder =
                     AlertDialog.Builder(context ?: return@showDialog, R.style.AlertDialogCustom)

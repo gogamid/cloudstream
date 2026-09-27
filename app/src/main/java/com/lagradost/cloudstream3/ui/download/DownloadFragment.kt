@@ -318,6 +318,7 @@ class DownloadFragment : BaseFragment<FragmentDownloadsBinding>(
     private fun showStreamInputDialog(context: Context) {
         val dialog = Dialog(context, R.style.AlertDialogCustom)
         val binding = StreamInputBinding.inflate(dialog.layoutInflater)
+        com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
         dialog.setContentView(binding.root)
         dialog.show()
 

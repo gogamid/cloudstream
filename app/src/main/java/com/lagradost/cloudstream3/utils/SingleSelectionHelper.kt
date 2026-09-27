@@ -193,6 +193,8 @@ object SingleSelectionHelper {
     ) {
         if (this == null) return
 
+        TvTextInputNavigation.prepare(binding.root, dialog = true)
+        binding.nginxTextInput.nextFocusDownId = binding.applyBtt.id
         val inputView = binding.nginxTextInput
         val textView = binding.text1
         val applyButton = binding.applyBtt

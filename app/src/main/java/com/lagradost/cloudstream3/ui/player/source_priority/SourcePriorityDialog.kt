@@ -26,6 +26,7 @@ class SourcePriorityDialog(
     override fun show() {
         val binding =
             PlayerSelectSourcePriorityBinding.inflate(LayoutInflater.from(ctx), null, false)
+        com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
         setContentView(binding.root)
         fixSystemBarsPadding(binding.root)
 

@@ -596,6 +596,8 @@ class GeneratorPlayer : FullScreenPlayer() {
         val dialog = Dialog(context, R.style.DialogFullscreenPlayer)
         val binding =
             DialogOnlineSubtitlesBinding.inflate(LayoutInflater.from(context), null, false)
+        com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
+        binding.subtitlesSearch.nextFocusDownId = R.id.subtitle_adapter
         dialog.setContentView(binding.root)
         fixSystemBarsPadding(binding.root)
 
