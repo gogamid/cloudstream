@@ -445,7 +445,10 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         }
     }
 
+    private var remoteMappings: Map<Int, RemoteButtonMappings.Action> = emptyMap()
+
     override fun onResume() {
+        remoteMappings = context?.let(RemoteButtonMappings::load).orEmpty()
         playerHostView?.enterFullscreen { updateOrientation() }
         setupKeyEventListener()
         playerHostView?.verifyVolume()
@@ -1023,7 +1026,58 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         return true
     }
 
+    private fun runRemoteAction(action: RemoteButtonMappings.Action) {
+        val playback = when (action) {
+            RemoteButtonMappings.Action.PLAY_PAUSE -> CSPlayerEvent.PlayPauseToggle
+            RemoteButtonMappings.Action.PLAY -> CSPlayerEvent.Play
+            RemoteButtonMappings.Action.PAUSE -> CSPlayerEvent.Pause
+            RemoteButtonMappings.Action.RESTART -> CSPlayerEvent.Restart
+            RemoteButtonMappings.Action.MUTE -> CSPlayerEvent.ToggleMute
+            RemoteButtonMappings.Action.SEEK_FORWARD -> CSPlayerEvent.SeekForward
+            RemoteButtonMappings.Action.SEEK_BACK -> CSPlayerEvent.SeekBack
+            RemoteButtonMappings.Action.SKIP_CHAPTER -> CSPlayerEvent.SkipCurrentChapter
+            RemoteButtonMappings.Action.NEXT_EPISODE -> CSPlayerEvent.NextEpisode
+            RemoteButtonMappings.Action.PREVIOUS_EPISODE -> CSPlayerEvent.PrevEpisode
+            RemoteButtonMappings.Action.AUDIO_ONLY -> CSPlayerEvent.PlayAsAudio
+            else -> null
+        }
+        if (playback != null) {
+            player.handleEvent(playback)
+            return
+        }
+        when (action) {
+            RemoteButtonMappings.Action.DISABLED -> Unit
+            RemoteButtonMappings.Action.SKIP_OPENING -> skipOp()
+            RemoteButtonMappings.Action.EPISODES -> toggleEpisodesOverlay(show = true)
+            RemoteButtonMappings.Action.SUBTITLE_SEARCH -> {
+                val ctx = context ?: return
+                if (subsProvidersIsActive) openOnlineSubPicker(ctx, null) {}
+                else android.widget.Toast.makeText(ctx, R.string.remote_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+            }
+            RemoteButtonMappings.Action.SUBTITLE_TIMING -> showSubtitleOffsetDialog()
+            RemoteButtonMappings.Action.SOURCES -> showMirrorsDialogue()
+            RemoteButtonMappings.Action.TRACKS -> showTracksDialogue()
+            RemoteButtonMappings.Action.SPEED -> showSpeedDialog()
+            RemoteButtonMappings.Action.RESIZE -> nextResize()
+            RemoteButtonMappings.Action.CONTROLS -> onClickChange()
+            RemoteButtonMappings.Action.LOCK -> toggleLock()
+            RemoteButtonMappings.Action.EXIT -> activity?.popCurrentPage("FullScreenPlayer")
+            else -> Unit // Playback actions handled above.
+        }
+    }
+
     private fun handleKeyEvent(event: KeyEvent, hasNavigated: Boolean): Boolean {
+        // Dialog windows own their keys; editor input must never trigger shortcuts.
+        if (isDialogOpen() || activity?.window?.decorView?.hasWindowFocus() != true ||
+            activity?.currentFocus is android.widget.EditText
+        ) return false
+        remoteMappings[event.keyCode]?.let { action ->
+            // Single press only: consume repeats and key-up without repeating actions.
+            if (!hasNavigated && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+                (!isLocked || action == RemoteButtonMappings.Action.LOCK)
+            ) runRemoteAction(action)
+            return true
+        }
         if (hasNavigated) {
             autoHide()
             return false

@@ -2,6 +2,11 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <Preference
+        android:key="player_remote_buttons"
+        android:title="@string/remote_buttons"
+        android:summary="@string/remote_buttons_summary" />
+
     <SwitchPreference
         android:icon="@drawable/baseline_sync_24"
         android:summary="@string/episode_sync_settings_des"

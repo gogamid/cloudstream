@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="remote_buttons">Remote buttons</string>
+    <string name="remote_buttons_summary">Assign single-press shortcuts for fullscreen playback</string>
+    <string name="remote_add">Add mapping</string>
+    <string name="remote_reset">Reset all mappings</string>
+    <string name="remote_reset_confirm">Restore the default remote shortcuts? All custom mappings will be removed.</string>
+    <string name="remote_press_button">Press a remote button</string>
+    <string name="remote_capture_hint">Press and release a number, colored button, or other shortcut key. Navigation, OK, Back, volume, and system buttons stay reserved. Some buttons may be intercepted by your TV. Back cancels.</string>
+    <string name="remote_default">Default (remove override)</string>
+    <string name="remote_disabled">Disabled</string>
+    <string name="remote_play_pause">Play / pause</string>
+    <string name="remote_play">Play</string>
+    <string name="remote_pause">Pause</string>
+    <string name="remote_restart">Restart video</string>
+    <string name="remote_mute">Mute / unmute</string>
+    <string name="remote_seek_forward">Seek forward</string>
+    <string name="remote_seek_back">Seek backward</string>
+    <string name="remote_skip_opening">Skip opening</string>
+    <string name="remote_skip_chapter">Skip current chapter</string>
+    <string name="remote_next_episode">Next episode</string>
+    <string name="remote_previous_episode">Previous episode</string>
+    <string name="remote_episodes">Episode list</string>
+    <string name="remote_subtitle_search">Online subtitle search</string>
+    <string name="remote_subtitle_timing">Subtitle timing</string>
+    <string name="remote_sources">Sources / subtitles</string>
+    <string name="remote_tracks">Audio / video tracks</string>
+    <string name="remote_speed">Playback speed</string>
+    <string name="remote_resize">Cycle video sizing</string>
+    <string name="remote_controls">Show / hide controls</string>
+    <string name="remote_lock">Lock / unlock controls</string>
+    <string name="remote_audio_only">Play as audio</string>
+    <string name="remote_exit">Exit player</string>
+    <string name="remote_unavailable">This action is unavailable for the current video or settings.</string>
+</resources>

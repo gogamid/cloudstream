@@ -41,6 +41,10 @@ class SettingsPlayer : BasePreferenceFragmentCompat() {
         hideKeyboard()
         setPreferencesFromResource(R.xml.settings_player, rootKey)
         val settingsManager = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        findPreference<androidx.preference.Preference>("player_remote_buttons")?.setOnPreferenceClickListener {
+            RemoteButtonsDialog.show(requireContext())
+            true
+        }
 
         //Hide specific prefs on TV/EMULATOR
         hidePrefs(
