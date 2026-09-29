@@ -42,6 +42,14 @@ class SettingsUI : BasePreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         hideKeyboard()
         setPreferencesFromResource(R.xml.settings_ui, rootKey)
+        findPreference<androidx.preference.Preference>("discover_filter_defaults_editor")?.setOnPreferenceClickListener {
+            FilterDefaultsDialog.show(this, actor = false)
+            true
+        }
+        findPreference<androidx.preference.Preference>("actor_filter_defaults_editor")?.setOnPreferenceClickListener {
+            FilterDefaultsDialog.show(this, actor = true)
+            true
+        }
         val settingsManager = PreferenceManager.getDefaultSharedPreferences(requireContext())
 
         (getPref(R.string.overscan_key)?.hideOn(PHONE or EMULATOR) as? SeekBarPreference)?.setOnPreferenceChangeListener { pref, newValue ->

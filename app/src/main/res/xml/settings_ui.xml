@@ -2,6 +2,15 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <PreferenceCategory android:title="@string/filter_defaults_category">
+        <Preference android:key="discover_filter_defaults_editor"
+            android:title="@string/discover_filter_defaults"
+            android:summary="@string/filter_defaults_summary" />
+        <Preference android:key="actor_filter_defaults_editor"
+            android:title="@string/actor_filter_defaults"
+            android:summary="@string/filter_defaults_summary" />
+    </PreferenceCategory>
+
     <PreferenceCategory android:title="@string/pref_category_looks">
         <Preference
             android:icon="@drawable/ic_baseline_color_lens_24"

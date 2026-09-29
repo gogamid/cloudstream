@@ -27,20 +27,36 @@ internal data class DiscoverState(
     val hasMore: Boolean = false,
     val loading: Boolean = false,
     val error: Boolean = false,
+    val defaults: FilterDefaults = FilterDefaults(),
 ) {
     val isDefault: Boolean
-        get() = type == DiscoverMediaType.MOVIES &&
-            language == DiscoverLanguage.ENGLISH &&
-            rating == TmdbRatingFilter.SEVEN &&
-            genreIds.isEmpty() &&
-            yearFrom == null && yearTo == null &&
-            sort == DiscoverSort.POPULAR
+        get() = type == defaults.typeValue() &&
+            language == defaults.languageValue() && rating == defaults.ratingValue() &&
+            genreIds == defaults.genreIds && yearFrom == defaults.yearFrom &&
+            yearTo == defaults.yearTo && sort == defaults.sortValue()
 }
 
 internal class DiscoverViewModel(private val savedState: SavedStateHandle) : ViewModel() {
     private val repository = DiscoverRepository()
+    private var configuredDefaults = FilterDefaults.load(false).also { defaults ->
+        if (savedState.keys().none { it in setOf("type", "language", "rating", "genre_ids", "yearFrom", "yearTo", "sort") }) {
+            saveFilters(defaults)
+        }
+    }
+
+    private fun saveFilters(defaults: FilterDefaults) {
+        savedState["type"] = defaults.type
+        savedState["language"] = defaults.language
+        savedState["rating"] = defaults.rating
+        savedState["genre_ids"] = defaults.genreIds.toIntArray()
+        savedState["yearFrom"] = defaults.yearFrom
+        savedState["yearTo"] = defaults.yearTo
+        savedState["sort"] = defaults.sort
+        savedState.remove<Int>("year")
+    }
     private val mutableState = MutableLiveData(
         DiscoverState(
+            defaults = configuredDefaults,
             type = DiscoverMediaType.entries.firstOrNull {
                 it.name == savedState.get<String>("type")
             } ?: DiscoverMediaType.MOVIES,
@@ -126,26 +142,21 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
 
     fun resetFilters() {
         val current = mutableState.value ?: return
-        if (current.isDefault) return
-        savedState["type"] = DiscoverMediaType.MOVIES.name
-        savedState["language"] = DiscoverLanguage.ENGLISH.name
-        savedState["rating"] = TmdbRatingFilter.SEVEN.minimum
-        savedState.remove<IntArray>("genre_ids")
-        savedState.remove<Int>("yearFrom")
-        savedState.remove<Int>("yearTo")
-        savedState.remove<Int>("year")
-        savedState["sort"] = DiscoverSort.POPULAR.name
+        val defaults = FilterDefaults.load(false)
+        configuredDefaults = defaults
+        saveFilters(defaults)
         mutableState.value = current.copy(
-            type = DiscoverMediaType.MOVIES,
-            language = DiscoverLanguage.ENGLISH,
-            rating = TmdbRatingFilter.SEVEN,
-            genreIds = emptySet(),
-            genres = if (current.type == DiscoverMediaType.MOVIES) current.genres else emptyList(),
-            yearFrom = null,
-            yearTo = null,
-            sort = DiscoverSort.POPULAR,
+            defaults = defaults,
+            type = defaults.typeValue(), language = defaults.languageValue(),
+            rating = defaults.ratingValue(), genreIds = defaults.genreIds,
+            genres = if (current.type == defaults.typeValue()) current.genres else emptyList(),
+            yearFrom = defaults.yearFrom, yearTo = defaults.yearTo, sort = defaults.sortValue(),
         )
         load(reset = true)
+    }
+
+    fun refreshDefaults() {
+        if (configuredDefaults != FilterDefaults.load(false)) resetFilters()
     }
 
     fun loadMoreOrRetry() {

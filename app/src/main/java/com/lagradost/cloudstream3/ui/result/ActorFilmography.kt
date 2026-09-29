@@ -74,13 +74,14 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
     private var loadJob: Job? = null
     private val repository = ActorFilmographyRepository()
     private var allCredits: List<SearchResponse> = emptyList()
-    private var activeFilter = FilmographyFilter.MOVIES
-    private var languageFilter = DiscoverLanguage.ENGLISH
-    private var ratingFilter = TmdbRatingFilter.SEVEN
-    private var selectedGenres: Set<String> = emptySet()
-    private var yearFrom: Int? = null
-    private var yearTo: Int? = null
-    private var sortFilter = DiscoverSort.POPULAR
+    private var defaults = com.lagradost.cloudstream3.ui.discover.FilterDefaults.load(true)
+    private var activeFilter = FilmographyFilter.valueOf(defaults.type)
+    private var languageFilter = defaults.languageValue()
+    private var ratingFilter = defaults.ratingValue()
+    private var selectedGenres: Set<String> = defaults.genreNames
+    private var yearFrom: Int? = defaults.yearFrom
+    private var yearTo: Int? = defaults.yearTo
+    private var sortFilter = defaults.sortValue()
     private var availableGenres: List<String> = emptyList()
     private var hasLoaded = false
 
@@ -139,9 +140,11 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         ratingFilter = TmdbRatingFilter.entries.firstOrNull {
             it.name == savedInstanceState?.getString("filmography_rating")
         } ?: ratingFilter
-        selectedGenres = savedInstanceState?.getStringArray("filmography_genres")?.toSet().orEmpty()
-        yearFrom = savedInstanceState?.getInt("filmography_yearFrom")?.takeIf { it > 0 }
-        yearTo = savedInstanceState?.getInt("filmography_yearTo")?.takeIf { it > 0 }
+        if (savedInstanceState != null) {
+            selectedGenres = savedInstanceState.getStringArray("filmography_genres")?.toSet().orEmpty()
+            yearFrom = savedInstanceState.getInt("filmography_yearFrom").takeIf { it > 0 }
+            yearTo = savedInstanceState.getInt("filmography_yearTo").takeIf { it > 0 }
+        }
         // legacy single-year key
         savedInstanceState?.getInt("filmography_year")?.takeIf { it > 0 }?.let {
             if (yearFrom == null && yearTo == null) { yearFrom = it; yearTo = it }
@@ -355,21 +358,18 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
     }
 
     private fun isDefault(): Boolean =
-        activeFilter == FilmographyFilter.MOVIES &&
-            languageFilter == DiscoverLanguage.ENGLISH &&
-            ratingFilter == TmdbRatingFilter.SEVEN &&
-            selectedGenres.isEmpty() &&
-            yearFrom == null && yearTo == null &&
-            sortFilter == DiscoverSort.POPULAR
+        activeFilter.name == defaults.type && languageFilter == defaults.languageValue() &&
+            ratingFilter == defaults.ratingValue() && selectedGenres == defaults.genreNames &&
+            yearFrom == defaults.yearFrom && yearTo == defaults.yearTo && sortFilter == defaults.sortValue()
 
     private fun resetFilters() {
-        if (isDefault()) return
-        activeFilter = FilmographyFilter.MOVIES
-        languageFilter = DiscoverLanguage.ENGLISH
-        ratingFilter = TmdbRatingFilter.SEVEN
-        selectedGenres = emptySet()
-        yearFrom = null; yearTo = null
-        sortFilter = DiscoverSort.POPULAR
+        defaults = com.lagradost.cloudstream3.ui.discover.FilterDefaults.load(true)
+        activeFilter = FilmographyFilter.valueOf(defaults.type)
+        languageFilter = defaults.languageValue()
+        ratingFilter = defaults.ratingValue()
+        selectedGenres = defaults.genreNames
+        yearFrom = defaults.yearFrom; yearTo = defaults.yearTo
+        sortFilter = defaults.sortValue()
         updateChipBar()
         applyFilter()
     }
@@ -447,9 +447,9 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             try {
                 val credits = withContext(Dispatchers.IO) { repository.load(actor) }
                 allCredits = credits
-                availableGenres = credits.flatMap { it.genres.orEmpty() }.distinct().sorted()
+                availableGenres = (credits.flatMap { it.genres.orEmpty() } + selectedGenres).distinct().sorted()
                 // Keep only still-valid genre selections
-                selectedGenres = selectedGenres.filter { it in availableGenres }.toSet()
+                // Keep configured genres even if this actor has no matching credits.
                 hasLoaded = true
                 binding.filmographyLoading.isVisible = false
                 applyFilter()

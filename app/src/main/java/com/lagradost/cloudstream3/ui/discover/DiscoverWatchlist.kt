@@ -46,6 +46,10 @@ internal object DiscoverWatchlist {
 
     // Keep the original key: old bookmarks default to WATCHLIST and all statuses
     // travel together through the existing datastore backup/restore mechanism.
+    fun hiddenUrls(entries: List<Entry>): Set<String> = entries.filter {
+        it.status == Status.COMPLETED || it.status == Status.IGNORED
+    }.map { it.url }.toSet()
+
     fun allEntries(): List<Entry> = getKey<List<Entry>>(storageKey).orEmpty()
     fun entries(status: Status = Status.WATCHLIST) = allEntries().filter { it.status == status }
     fun status(card: SearchResponse) = allEntries().firstOrNull { it.url == card.url }?.status

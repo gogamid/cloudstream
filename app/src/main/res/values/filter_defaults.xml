@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="filter_defaults_category">Default filters</string>
+    <string name="discover_filter_defaults">Discover defaults</string>
+    <string name="actor_filter_defaults">Actor filmography defaults</string>
+    <string name="filter_defaults_summary">Used for new views and Reset. Changing filters while browsing does not overwrite these defaults.</string>
+    <string name="filter_defaults_factory">Restore factory defaults</string>
+    <string name="filter_defaults_factory_confirm">Restore Movies, English, 7+, Popular, all genres and all years?</string>
+    <string name="filter_defaults_loading">Loading genres…</string>
+    <string name="filter_defaults_all_genres">All genres</string>
+    <string name="filter_defaults_unbounded">No limit</string>
+    <string name="filter_defaults_year_from">From year</string>
+    <string name="filter_defaults_year_to">To year</string>
+    <string name="filter_defaults_any">Any</string>
+</resources>
