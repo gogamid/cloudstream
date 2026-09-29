@@ -1026,6 +1026,8 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         return true
     }
 
+    protected open fun selectSubtitleLanguage(language: String) = Unit
+
     private fun runRemoteAction(action: RemoteButtonMappings.Action) {
         val playback = when (action) {
             RemoteButtonMappings.Action.PLAY_PAUSE -> CSPlayerEvent.PlayPauseToggle
@@ -1055,6 +1057,8 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 else android.widget.Toast.makeText(ctx, R.string.remote_unavailable, android.widget.Toast.LENGTH_SHORT).show()
             }
             RemoteButtonMappings.Action.SUBTITLE_TIMING -> showSubtitleOffsetDialog()
+            RemoteButtonMappings.Action.RUSSIAN_SUBTITLES -> selectSubtitleLanguage("ru")
+            RemoteButtonMappings.Action.ENGLISH_SUBTITLES -> selectSubtitleLanguage("en")
             RemoteButtonMappings.Action.SOURCES -> showMirrorsDialogue()
             RemoteButtonMappings.Action.TRACKS -> showTracksDialogue()
             RemoteButtonMappings.Action.SPEED -> showSpeedDialog()

@@ -32,4 +32,8 @@
     <string name="remote_audio_only">Play as audio</string>
     <string name="remote_exit">Exit player</string>
     <string name="remote_unavailable">This action is unavailable for the current video or settings.</string>
+    <string name="remote_russian_subtitles">Russian subtitles</string>
+    <string name="remote_english_subtitles">English subtitles</string>
+    <string name="remote_subtitle_missing">No %1$s available for this video.</string>
+    <string name="remote_subtitle_selected">Selected: %1$s</string>
 </resources>

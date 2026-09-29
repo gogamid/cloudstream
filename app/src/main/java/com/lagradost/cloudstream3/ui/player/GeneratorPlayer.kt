@@ -240,6 +240,27 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
     }
 
+    override fun selectSubtitleLanguage(language: String) {
+        val ctx = context ?: return
+        val subtitle = SubtitleLanguageSelection.first(sortSubs(viewModel.state.subtitles), language)
+        if (subtitle == null) {
+            val label = ctx.getString(if (language == "ru")
+                R.string.remote_russian_subtitles else R.string.remote_english_subtitles)
+            android.widget.Toast.makeText(ctx, ctx.getString(R.string.remote_subtitle_missing, label),
+                android.widget.Toast.LENGTH_SHORT).show()
+            return // Do not disable or replace the current subtitles on a miss.
+        }
+        // Follow the same selection path as the subtitle menu, including language preference.
+        // Existing URL/file tracks may require a player reload; no subtitle-provider search.
+        player.setActiveSubtitles(viewModel.state.subtitles)
+        if (setSubtitles(subtitle, true)) {
+            player.saveData()
+            player.reloadPlayer(ctx) // Preserves playback position and play/pause state.
+        }
+        android.widget.Toast.makeText(ctx, ctx.getString(R.string.remote_subtitle_selected, subtitle.name.trim()),
+            android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     private fun noSubtitles(): Boolean {
         return setSubtitles(null, true)
     }
