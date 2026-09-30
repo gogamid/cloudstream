@@ -135,8 +135,16 @@ abstract class AbstractPlayerFragment<T : ViewBinding>(
     }
 
     override fun onPause() {
+        // Flush while callbacks and episode metadata are still attached. Do not
+        // pause here: PiP/background-audio transitions keep their existing behavior.
+        player.saveData()
         playerHostView?.releaseKeyEventListener()
         super.onPause()
+    }
+
+    override fun onDestroyView() {
+        player.saveData()
+        super.onDestroyView()
     }
 
     override fun onStop() {

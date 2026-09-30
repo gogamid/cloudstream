@@ -209,6 +209,20 @@ class CS3IPlayer : IPlayer {
 
     private var eventHandler: ((PlayerEvent) -> Unit)? = null
 
+    private val checkpointHandler = Handler(Looper.getMainLooper())
+    private val checkpointRunnable = object : Runnable {
+        override fun run() {
+            if (eventHandler == null) return
+            exoPlayer?.let { exo ->
+                if (PlaybackCheckpoint.shouldSave(exo.isPlaying, hasUsedFirstRender,
+                        exo.currentPosition, exo.contentDuration)) {
+                    updatedTime(source = PlayerEventSource.Player)
+                }
+            }
+            if (eventHandler != null) checkpointHandler.postDelayed(this, PlaybackCheckpoint.INTERVAL_MS)
+        }
+    }
+
     @AnyThread
     fun event(event: PlayerEvent) {
         // Ensure that all work is done on the main thread.
@@ -227,6 +241,7 @@ class CS3IPlayer : IPlayer {
     var isPlayerActive: Boolean = false
 
     override fun releaseCallbacks() {
+        checkpointHandler.removeCallbacks(checkpointRunnable)
         eventHandler = null
         if (isPlayerActive) {
             isPlayerActive = false
@@ -242,6 +257,9 @@ class CS3IPlayer : IPlayer {
     ) {
         this.requestedListeningPercentages = requestedListeningPercentages
         this.eventHandler = eventHandler
+        // One main-thread checkpoint loop per attached player, including after reloads.
+        checkpointHandler.removeCallbacks(checkpointRunnable)
+        checkpointHandler.postDelayed(checkpointRunnable, PlaybackCheckpoint.INTERVAL_MS)
         if (!isPlayerActive) {
             isPlayerActive = true
             activePlayers += 1
