@@ -19,10 +19,17 @@ internal object SubtitleLanguageSelection {
     }
 
     /** Preserve the player's displayed subtitle order; do not fetch anything. */
-    fun first(subtitles: List<SubtitleData>, wanted: String): SubtitleData? = subtitles.firstOrNull {
-        val resolved = language(it.languageCode)
-            ?: language(it.originalName)
-            ?: language(it.getIETF_tag())
-        resolved == wanted
+    fun first(subtitles: List<SubtitleData>, wanted: String): SubtitleData? = next(subtitles, wanted, null)
+
+    fun next(subtitles: List<SubtitleData>, wanted: String, current: SubtitleData?): SubtitleData? {
+        val matches = subtitles.filter {
+            val resolved = language(it.languageCode)
+                ?: language(it.originalName)
+                ?: language(it.getIETF_tag())
+            resolved == wanted
+        }.distinctBy { it.getId() }
+        if (matches.isEmpty()) return null
+        val index = matches.indexOfFirst { it.getId() == current?.getId() }
+        return matches[(index + 1) % matches.size]
     }
 }

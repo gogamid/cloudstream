@@ -44,6 +44,32 @@ class SubtitleLanguageSelectionTest {
         assertNull(SubtitleLanguageSelection.first(listOf(sub("de", "Russian")), "ru"))
     }
 
+    @Test fun `cycles matching tracks in order and wraps for both languages`() {
+        for (language in listOf("en", "ru")) {
+            val first = sub(language, "First")
+            val second = sub(language, "Second", SubtitleOrigin.EMBEDDED_IN_VIDEO)
+            val third = sub(language, "Third", SubtitleOrigin.DOWNLOADED_FILE)
+            val other = sub("de", "German")
+            val tracks = listOf(first, other, second, third)
+            assertEquals(first, SubtitleLanguageSelection.next(tracks, language, null))
+            assertEquals(first, SubtitleLanguageSelection.next(tracks, language, other))
+            assertEquals(second, SubtitleLanguageSelection.next(tracks, language, first))
+            assertEquals(third, SubtitleLanguageSelection.next(tracks, language, second))
+            assertEquals(first, SubtitleLanguageSelection.next(tracks, language, third))
+        }
+    }
+
+    @Test fun `single missing removed and refreshed tracks are safe`() {
+        val first = sub("en", "First")
+        val second = sub("en", "Second")
+        assertEquals(first, SubtitleLanguageSelection.next(listOf(first), "en", first))
+        assertNull(SubtitleLanguageSelection.next(listOf(first), "ru", first))
+        assertNull(SubtitleLanguageSelection.next(emptyList(), "en", first))
+        assertEquals(second, SubtitleLanguageSelection.next(listOf(second), "en", first))
+        assertEquals(second, SubtitleLanguageSelection.next(listOf(first, first, second), "en",
+            first.copy(headers = mapOf("Referer" to "updated"))))
+    }
+
     @Test fun `new action names survive stored mapping decoding`() {
         val result = RemoteButtonMappings.decode(setOf(
             "${KeyEvent.KEYCODE_1}:RUSSIAN_SUBTITLES", "${KeyEvent.KEYCODE_2}:ENGLISH_SUBTITLES"))

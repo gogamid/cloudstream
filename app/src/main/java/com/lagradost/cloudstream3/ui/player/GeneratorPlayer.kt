@@ -242,7 +242,9 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     override fun selectSubtitleLanguage(language: String) {
         val ctx = context ?: return
-        val subtitle = SubtitleLanguageSelection.first(sortSubs(viewModel.state.subtitles), language)
+        val subtitle = SubtitleLanguageSelection.next(
+            sortSubs(viewModel.state.subtitles), language, player.getCurrentPreferredSubtitle()
+        )
         if (subtitle == null) {
             val label = ctx.getString(if (language == "ru")
                 R.string.remote_russian_subtitles else R.string.remote_english_subtitles)
