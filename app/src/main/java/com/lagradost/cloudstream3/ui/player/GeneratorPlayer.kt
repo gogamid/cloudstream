@@ -196,7 +196,38 @@ class GeneratorPlayer : FullScreenPlayer() {
                 } ?: episode
             }
 
+    private fun seriesPreferenceKey(): String? {
+        val episode = currentMeta as? ResultEpisode ?: return null
+        if (episode.tvType.isMovieType() || episode.tvType.isLiveStream() || episode.tvType == TvType.NSFW) return null
+        return "${DataStoreHelper.currentAccount}/series_source_preferences/${episode.parentId}"
+    }
+
+    private fun seriesPreferences(): SeriesSourcePreferences = seriesPreferenceKey()?.let {
+        com.lagradost.cloudstream3.CloudStreamApp.getKey<SeriesSourcePreferences>(it)
+    } ?: SeriesSourcePreferences()
+
+    private fun videoIdentity(link: VideoLink): SeriesSourcePreferences.Video? = link.first?.let {
+        SeriesSourcePreferences.Video(it.source, it.name, it.quality, it.type.name)
+    }
+
+    private fun rememberVideo(link: VideoLink) {
+        val key = seriesPreferenceKey() ?: return
+        val identity = videoIdentity(link) ?: return
+        setKey(key, seriesPreferences().copy(video = identity))
+    }
+
+    private fun preferredSeriesSubtitle(subtitles: Set<SubtitleData>): SubtitleData? {
+        val preferred = seriesPreferences().subtitle ?: return null
+        return sortSubs(subtitles).firstOrNull(preferred::matches)
+    }
+
     private fun setSubtitles(subtitle: SubtitleData?, userInitiated: Boolean): Boolean {
+        if (userInitiated) seriesPreferenceKey()?.let { key ->
+            setKey(key, seriesPreferences().copy(
+                subtitle = subtitle?.let(SeriesSourcePreferences.Subtitle::from),
+                subtitlesOff = subtitle == null
+            ))
+        }
         // If subtitle is changed and user initiated -> Save the language
         if (subtitle != currentSelectedSubtitles && userInitiated) {
             val subtitleLanguageTagIETF = if (subtitle == null) {
@@ -558,9 +589,9 @@ class GeneratorPlayer : FullScreenPlayer() {
                     if (isNextEpisode) 0L else getPos()
                 },
                 subtitles,
-                (if (sameEpisode) currentSelectedSubtitles else null) ?: getAutoSelectSubtitle(
-                    subtitles, settings = true, downloads = true
-                ),
+                if (seriesPreferences().subtitlesOff) null else
+                    (if (sameEpisode) currentSelectedSubtitles else null) ?: preferredSeriesSubtitle(subtitles)
+                    ?: getAutoSelectSubtitle(subtitles, settings = true, downloads = true),
                 preview = true
             )
         }
@@ -1419,6 +1450,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                     }
                     if (init) {
                         filteredLinks.getOrNull(sourceIndex)?.let {
+                            if (sourceIndex != startSource) rememberVideo(it.link)
                             loadLink(it.link, true)
                         }
                     }
@@ -1640,7 +1672,10 @@ class GeneratorPlayer : FullScreenPlayer() {
 
         val links = viewModel.state.sortLinks(currentQualityProfile)
 
-        val firstAvailableLink = links.firstOrNull { it.shouldUseLink }?.link
+        val preferredVideo = seriesPreferences().video
+        val firstAvailableLink = links.firstOrNull {
+            it.shouldUseLink && preferredVideo != null && videoIdentity(it.link) == preferredVideo
+        }?.link ?: links.firstOrNull { it.shouldUseLink }?.link
         if (firstAvailableLink == null) {
             noLinksFound()
             return
@@ -1822,6 +1857,8 @@ class GeneratorPlayer : FullScreenPlayer() {
     private fun getAutoSelectSubtitle(
         subtitles: Set<SubtitleData>, settings: Boolean, downloads: Boolean
     ): SubtitleData? {
+        if (seriesPreferences().subtitlesOff) return null
+        preferredSeriesSubtitle(subtitles)?.let { return it }
         val langCode = preferredAutoSelectSubtitles ?: return null
         if (downloads) {
             sortSubs(subtitles).firstOrNull {
@@ -1837,6 +1874,18 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     private fun autoSelectFromSettings(): Boolean {
+        // A matching series choice takes precedence when tracks arrive after video load.
+        if (seriesPreferences().subtitlesOff) return false
+        preferredSeriesSubtitle(viewModel.state.subtitles)?.let { preferred ->
+            if (player.getCurrentPreferredSubtitle()?.getId() != preferred.getId()) {
+                val ctx = context ?: return false
+                if (setSubtitles(preferred, false)) {
+                    player.saveData()
+                    player.reloadPlayer(ctx)
+                }
+            }
+            return true
+        }
         // auto select subtitle based on settings
         val langCode = preferredAutoSelectSubtitles
         val current = player.getCurrentPreferredSubtitle()
@@ -1867,6 +1916,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     private fun autoSelectFromDownloads() {
+        if (seriesPreferences().subtitlesOff) return
         if (player.getCurrentPreferredSubtitle() != null) {
             return
         }
