@@ -822,6 +822,8 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             binding.apply {
                 homeApiFab.text = displayApiName
                 homeChangeApi.text = displayApiName
+                homeApiFab.isVisible = false
+                homeChangeApi.isVisible = false
                 homePreviewReloadProvider.isGone = (apiName == noneApi.name)
                 homePreviewSearchButton.isGone = (apiName == noneApi.name)
             }
