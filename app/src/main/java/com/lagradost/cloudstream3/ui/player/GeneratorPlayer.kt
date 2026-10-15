@@ -129,6 +129,9 @@ import com.lagradost.cloudstream3.utils.setText
 import com.lagradost.cloudstream3.utils.txt
 import com.lagradost.cloudstream3.utils.videoskip.VideoSkipStamp
 import com.lagradost.safefile.SafeFile
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import android.os.SystemClock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -267,6 +270,9 @@ class GeneratorPlayer : FullScreenPlayer() {
     override fun playerStatusChanged() {
         super.playerStatusChanged()
         if (player.getIsPlaying()) {
+            sourcePlaybackStarted = true
+            sourceStartupJob?.cancel()
+            sourceStartupJob = null
             viewModel.forceClearCache = false
         }
     }
@@ -550,8 +556,39 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
     }
 
-    private fun loadLink(link: VideoLink?, sameEpisode: Boolean) {
+    private var sourceStartupJob: Job? = null
+    private var manuallySelectedSource = false
+    private var sourcePlaybackStarted = false
+
+    private fun watchSourceStartup(link: VideoLink) {
+        if (manuallySelectedSource || sourcePlaybackStarted) return
+        sourceStartupJob = viewLifecycleOwner.lifecycleScope.launch {
+            val timeout = SourceStartupTimeout(automatic = true)
+            var previous = SystemClock.elapsedRealtime()
+            while (isActive && currentSelectedLink == link) {
+                delay(100)
+                val now = SystemClock.elapsedRealtime()
+                // A suspended main thread/background interval is not startup time.
+                val elapsed = (now - previous).coerceAtMost(250L)
+                previous = now
+                if (player.getIsPlaying() || sourcePlaybackStarted) return@launch
+                val eligible = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && !isDialogOpen()
+                if (timeout.tick(elapsed, eligible, playing = false)) {
+                    // Do not persist a timeout as a user preference. Retain normal
+                    // source ordering and fallback/error handling at exhaustion.
+                    nextMirror()
+                    return@launch
+                }
+            }
+        }
+    }
+
+    private fun loadLink(link: VideoLink?, sameEpisode: Boolean, manualSelection: Boolean? = null) {
         if (link == null) return
+        sourceStartupJob?.cancel()
+        sourceStartupJob = null
+        sourcePlaybackStarted = sameEpisode && currentSelectedLink == link && sourcePlaybackStarted
+        manuallySelectedSource = manualSelection ?: (sameEpisode && manuallySelectedSource)
         isPlayerActive.set(true)
         // manage UI
         binding?.playerLoadingOverlay?.isVisible = false
@@ -596,6 +633,7 @@ class GeneratorPlayer : FullScreenPlayer() {
             )
         }
 
+        watchSourceStartup(link)
         if (!sameEpisode) {
             player.addTimeStamps(emptyList()) // clear stamps
             // Resets subtitle delay, as we watch some other content
@@ -1172,6 +1210,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                 }
 
                 var sourceIndex = 0
+                var sourceSelectionTouched = false
                 var startSource = 0
                 // Filtered and sorted links
                 var currentHiddenFooter: View? = null
@@ -1206,6 +1245,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                         providerList.setItemChecked(sourceIndex, true)
 
                         providerList.setOnItemClickListener { _, _, which, _ ->
+                            sourceSelectionTouched = true
                             sourceIndex = which
                             providerList.setItemChecked(which, true)
                         }
@@ -1438,6 +1478,12 @@ class GeneratorPlayer : FullScreenPlayer() {
                 }
 
                 binding.applyBtt.setOnClickListener {
+                    if (sourceSelectionTouched) {
+                        manuallySelectedSource = true
+                        sourceStartupJob?.cancel()
+                        sourceStartupJob = null
+                        filteredLinks.getOrNull(sourceIndex)?.let { rememberVideo(it.link) }
+                    }
                     var init = sourceIndex != startSource
                     if (subtitleGroupIndex != subtitleGroupIndexStart || subtitleOptionIndex != subtitleOptionIndexStart) {
                         init = init or if (subtitleGroupIndex <= 0) {
@@ -1453,7 +1499,8 @@ class GeneratorPlayer : FullScreenPlayer() {
                     if (init) {
                         filteredLinks.getOrNull(sourceIndex)?.let {
                             if (sourceIndex != startSource) rememberVideo(it.link)
-                            loadLink(it.link, true)
+                            loadLink(it.link, true, manualSelection =
+                                if (sourceSelectionTouched || sourceIndex != startSource) true else null)
                         }
                     }
                     sourceDialog.dismissSafe(activity)
@@ -1622,6 +1669,8 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     override fun playerError(exception: Throwable) {
+        sourceStartupJob?.cancel()
+        sourceStartupJob = null
         currentSelectedLink?.let { link ->
             viewModel.modifyState { this.addError(link) }
         }
@@ -1773,10 +1822,11 @@ class GeneratorPlayer : FullScreenPlayer() {
             return
         }
 
-        loadLink(nextLink.link, true)
+        loadLink(nextLink.link, true, manualSelection = false)
     }
 
     override fun onDestroy() {
+        sourceStartupJob?.cancel()
         ResultFragment.updateUI()
         currentVerifyLink?.cancel()
         super.onDestroy()
@@ -2289,6 +2339,8 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     @MainThread
     fun releasePlayer() {
+        sourceStartupJob?.cancel()
+        sourceStartupJob = null
         player.release()
         currentSelectedSubtitles = null
         currentSelectedLink = null
