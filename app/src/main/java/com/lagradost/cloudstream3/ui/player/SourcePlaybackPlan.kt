@@ -46,7 +46,7 @@ internal class SourcePlaybackPlan<T>(private val keyOf: (T) -> Any? = { it }) {
         if (!mayStartEarly) return false
         val first = firstCandidateAt ?: nowMs.also { firstCandidateAt = it }
         if (preferences.video != null) {
-            if (available.any { it.video?.let(preferences.video::match)?.let { score -> score >= 2 } == true }) return true
+            if (available.any { it.video?.let(preferences.video::match)?.let { score -> score >= 3 } == true }) return true
             return nowMs - first >= PREFERRED_WAIT_MS
         }
         return available.any { it.priority >= instantPriority } || nowMs - first >= SETTLE_MS

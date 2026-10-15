@@ -41,8 +41,9 @@ For generators supporting early playback:
 Matching considers provider/source, normalized source name, quality, format, and
 optionally a hostname. Recognized episode and resolution labels are normalized;
 arbitrary host/server numbers and other name content are not stripped. Older
-preferences without a hostname remain readable. Weak source-only matches are
-fallbacks, not a reason to bypass the preferred-source grace period.
+preferences without a hostname remain readable. Weak provider-only or
+provider/quality/format matches are fallbacks, not a reason to bypass the
+preferred-source grace period.
 
 Only source descriptors/hostnames are persisted, never episode URLs, query tokens
 or request headers. Actual attempt URLs are used solely in memory to avoid retrying

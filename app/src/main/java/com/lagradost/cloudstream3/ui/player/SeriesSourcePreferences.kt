@@ -27,16 +27,17 @@ internal data class SeriesSourcePreferences(
         /** Strong matches preserve host/name identity; source-only is a weaker fallback. */
         fun match(candidate: Video): Int {
             if (normalized(source).isBlank() || normalized(source) != normalized(candidate.source)) return 0
-            if (this == candidate) return 6
+            if (this == candidate) return 7
             val sameName = stableName(name).isNotBlank() && stableName(name) == stableName(candidate.name)
             val sameHost = !host.isNullOrBlank() && host.equals(candidate.host, ignoreCase = true)
             val sameFormat = type == candidate.type
             val sameQuality = quality == candidate.quality
             return when {
-                sameName && sameFormat && sameQuality -> 5
-                sameHost && sameFormat && sameQuality -> 4
-                sameName -> 3
-                sameHost -> 2
+                sameName && sameFormat && sameQuality -> 6
+                sameHost && sameFormat && sameQuality -> 5
+                sameName -> 4
+                sameHost -> 3
+                sameFormat && sameQuality -> 2 // Weak: retain quality, but wait for a real host/name match.
                 else -> 1
             }
         }

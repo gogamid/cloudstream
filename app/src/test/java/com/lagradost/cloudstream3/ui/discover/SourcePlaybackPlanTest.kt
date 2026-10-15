@@ -37,6 +37,17 @@ class SourcePlaybackPlanTest {
         assertTrue(ready(plan, 3500, listOf(other), preference))
     }
 
+    @Test fun `weak provider match retains preferred quality but waits for actual host`() {
+        val plan = SourcePlaybackPlan<String>()
+        val prefs = SeriesSourcePreferences(video = video(name = "Old filename", host = null))
+        val sameQuality = candidate("1080", video(name = "New filename", host = "new.example"), 1)
+        val differentQuality = candidate("2160", video(name = "Other filename", quality = 2160), 20)
+        val links = listOf(differentQuality, sameQuality)
+        assertFalse(ready(plan, 0, links, prefs))
+        assertTrue(ready(plan, 2500, links, prefs))
+        assertEquals("1080", plan.ranked(links, prefs).first().id)
+    }
+
     @Test fun `without preference settle briefly and then play during extraction`() {
         val plan = SourcePlaybackPlan<String>()
         val links = listOf(candidate("first"))
@@ -88,6 +99,10 @@ class SourcePlaybackPlanTest {
         plan.failed(first.id, first.video) // Duplicate errors must not count twice.
         val ranked = plan.ranked(listOf(first, variant, other), prefs)
         assertEquals(listOf("other", "variant"), ranked.map { it.id })
+        plan.failed("other-failed-url", other.video)
+        // One failure per family is now tied. Duplicating the first error must
+        // not add another penalty and defeat the explicit preference.
+        assertEquals("variant", plan.ranked(listOf(variant, other), prefs).first().id)
     }
 
     @Test fun `automatic working hint never replaces available manual preference`() {

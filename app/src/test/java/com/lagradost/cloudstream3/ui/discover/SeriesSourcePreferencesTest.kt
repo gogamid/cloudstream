@@ -32,7 +32,7 @@ class SeriesSourcePreferencesTest {
     @Test fun `host identity survives episode filename changes without saving URLs`() {
         val saved = SeriesSourcePreferences.Video("Provider", "Show S01E01.mkv", 1080, "VIDEO", "cdn.example")
         assertTrue(saved.match(saved.copy(name = "Another file S01E02.mkv")) >= 2)
-        assertEquals(1, saved.match(saved.copy(name = "Other", host = "another.example")))
+        assertEquals(2, saved.match(saved.copy(name = "Other", host = "another.example")))
         val prefs = SeriesSourcePreferences(video = saved, lastWorkingVideo = saved.copy(name = "Other"))
         assertEquals(prefs, parseJson<SeriesSourcePreferences>(prefs.toJson()))
         assertFalse(prefs.toJson().contains("https://"))
