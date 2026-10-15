@@ -199,6 +199,7 @@ class CS3IPlayer : IPlayer {
     // Separate actual playback from the cached autoplay/resume intent above.
     private var hasActuallyPlayed = false
     fun hasStartedPlayback(): Boolean = hasActuallyPlayed || exoPlayer?.isPlaying == true
+    fun isActuallyPlaying(): Boolean = exoPlayer?.isPlaying == true
     override fun getPlaybackSpeed(): Float = playBackSpeed
 
     /**

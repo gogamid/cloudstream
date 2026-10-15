@@ -19,6 +19,32 @@ class SeriesSourcePreferencesTest {
         assertFalse(choice.matches(track("episode2").copy(originalName = "Russian", languageCode = "ru")))
     }
 
+    @Test fun `video matching tolerates changing episode and quality labels`() {
+        val saved = SeriesSourcePreferences.Video("Host", "Server S01E01 1080p", 1080, "VIDEO")
+        assertTrue(saved.match(saved.copy(name = "Server S01E02 1080p")) >= 3)
+        assertTrue(saved.match(saved.copy(name = "Server S02E01 720p", quality = 720)) >= 3)
+        assertTrue(saved.match(saved.copy(name = "Server Episode 7 1080p")) >= 3)
+        assertEquals(0, saved.match(saved.copy(source = "Different host")))
+        // Generic source-only matches must not bypass the preferred-source grace.
+        assertEquals(1, saved.match(saved.copy(name = "Different server", quality = 720)))
+    }
+
+    @Test fun `host identity survives episode filename changes without saving URLs`() {
+        val saved = SeriesSourcePreferences.Video("Provider", "Show S01E01.mkv", 1080, "VIDEO", "cdn.example")
+        assertTrue(saved.match(saved.copy(name = "Another file S01E02.mkv")) >= 2)
+        assertEquals(1, saved.match(saved.copy(name = "Other", host = "another.example")))
+        val prefs = SeriesSourcePreferences(video = saved, lastWorkingVideo = saved.copy(name = "Other"))
+        assertEquals(prefs, parseJson<SeriesSourcePreferences>(prefs.toJson()))
+        assertFalse(prefs.toJson().contains("https://"))
+    }
+
+    @Test fun `old video preferences remain readable`() {
+        val prefs = parseJson<SeriesSourcePreferences>("""{"video":{"source":"Host","name":"Host 1080p","quality":1080,"type":"VIDEO"},"subtitlesOff":false}""")
+        assertNull(prefs.video?.host)
+        assertNull(prefs.lastWorkingVideo)
+        assertTrue(prefs.video!!.match(prefs.video!!.copy(host = "cdn.example")) >= 3)
+    }
+
     @Test fun `preferences serialize with stable video descriptors and off state`() {
         val value = SeriesSourcePreferences(
             SeriesSourcePreferences.Video("Host", "Host 1080p", 1080, "VIDEO"),

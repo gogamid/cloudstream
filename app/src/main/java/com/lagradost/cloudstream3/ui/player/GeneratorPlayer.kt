@@ -82,7 +82,6 @@ import com.lagradost.cloudstream3.ui.player.PlayerSubtitleHelper.Companion.toSub
 import com.lagradost.cloudstream3.ui.player.source_priority.LinkSource
 import com.lagradost.cloudstream3.ui.player.source_priority.ProfileSettings
 import com.lagradost.cloudstream3.ui.player.source_priority.QualityDataHelper
-import com.lagradost.cloudstream3.ui.player.source_priority.QualityDataHelper.getLinkPriority
 import com.lagradost.cloudstream3.ui.player.source_priority.QualityProfileDialog
 import com.lagradost.cloudstream3.ui.result.ACTION_CLICK_DEFAULT
 import com.lagradost.cloudstream3.ui.result.EpisodeAdapter
@@ -210,7 +209,8 @@ class GeneratorPlayer : FullScreenPlayer() {
     } ?: SeriesSourcePreferences()
 
     private fun videoIdentity(link: VideoLink): SeriesSourcePreferences.Video? = link.first?.let {
-        SeriesSourcePreferences.Video(it.source, it.name, it.quality, it.type.name)
+        SeriesSourcePreferences.Video(it.source, it.name, it.quality, it.type.name,
+            runCatching { java.net.URI(it.url).host?.lowercase(java.util.Locale.ROOT) }.getOrNull())
     }
 
     private fun rememberVideo(link: VideoLink) {
@@ -554,13 +554,71 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     private var sourceStartupJob: Job? = null
+    private var sourceCollectionWaitJob: Job? = null
+    private var sourcePlan = SourcePlaybackPlan<VideoLink>(::sourceAttemptKey)
+    private var sourceSessionInstance = -1
+    private var sourceCollectionStartedAt = 0L
+    private var loggedFirstSources = false
+    private var awaitingSourceFallback = false
+    private var sourceResumePosition: Long? = null
     private var manuallySelectedSource = false
     private var sourcePlaybackStarted = false
 
+    // URL identity is episode-local only; persistent preferences never contain it.
+    private fun sourceAttemptKey(link: VideoLink): String = link.first?.let { "${it.type}:${it.url}" }
+        ?: link.second?.uri.toString()
+
+    private fun sourceCandidates() = viewModel.state.sortLinks(currentQualityProfile).map {
+        SourcePlaybackPlan.Candidate(it.link, videoIdentity(it.link), it.priority, it.shouldUseLink)
+    }
+
+    private fun collectingSources() = viewModel.state.loading is Resource.Loading
+
+    private fun prepareSourceSession() {
+        if (sourceSessionInstance == viewModel.state.instance) return
+        sourceSessionInstance = viewModel.state.instance
+        sourceCollectionStartedAt = SystemClock.elapsedRealtime()
+        loggedFirstSources = false
+        sourceCollectionWaitJob?.cancel()
+        sourceCollectionWaitJob = null
+        sourcePlan = SourcePlaybackPlan(::sourceAttemptKey)
+        awaitingSourceFallback = false
+        sourceResumePosition = null
+        manuallySelectedSource = false
+        sourcePlaybackStarted = false
+        releasePlayer()
+    }
+
+    private fun maybeStartSource() {
+        if (isPlayerActive.get()) return
+        val instance = viewModel.state.instance
+        if (sourceCollectionWaitJob?.isActive == true) return
+        sourceCollectionWaitJob = viewLifecycleOwner.lifecycleScope.launch {
+            while (isActive && instance == viewModel.state.instance && !isPlayerActive.get()) {
+                val candidates = sourceCandidates()
+                val collecting = collectingSources()
+                if (sourcePlan.ready(SystemClock.elapsedRealtime(), candidates, seriesPreferences(),
+                        collecting, viewModel.generator?.canSkipLoading == true,
+                        QualityDataHelper.AUTO_SKIP_PRIORITY)) {
+                    startPlayer()
+                    return@launch
+                }
+                if (!collecting) {
+                    startPlayer() // Also handles a genuinely empty, completed extraction.
+                    return@launch
+                }
+                delay(100)
+            }
+        }
+    }
+
     private fun watchSourceStartup(link: VideoLink) {
-        if (manuallySelectedSource || sourcePlaybackStarted) return
+        if (sourcePlaybackStarted) return
+        val preferenceKey = seriesPreferenceKey()
+        val identity = videoIdentity(link)
         sourceStartupJob = viewLifecycleOwner.lifecycleScope.launch {
-            val timeout = SourceStartupTimeout(automatic = true)
+            val timeout = SourceStartupTimeout(automatic = !manuallySelectedSource)
+            var playedMs = 0L
             var previous = SystemClock.elapsedRealtime()
             while (isActive && currentSelectedLink == link) {
                 delay(100)
@@ -569,14 +627,21 @@ class GeneratorPlayer : FullScreenPlayer() {
                 val elapsed = (now - previous).coerceAtMost(250L)
                 previous = now
                 val actuallyStarted = (player as? CS3IPlayer)?.hasStartedPlayback() ?: player.getIsPlaying()
-                if (actuallyStarted || sourcePlaybackStarted) {
-                    sourcePlaybackStarted = true
+                if (actuallyStarted) sourcePlaybackStarted = true
+                val eligible = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && !isDialogOpen()
+                val playingNow = (player as? CS3IPlayer)?.isActuallyPlaying() ?: player.getIsPlaying()
+                if (eligible && playingNow) playedMs += elapsed
+                if (playedMs >= 5_000L) {
+                    // Learn a fallback without replacing the explicit manual choice.
+                    if (preferenceKey != null && identity != null && preferenceKey == seriesPreferenceKey()) {
+                        setKey(preferenceKey, seriesPreferences().copy(lastWorkingVideo = identity))
+                    }
                     return@launch
                 }
-                val eligible = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && !isDialogOpen()
-                if (timeout.tick(elapsed, eligible, playing = false)) {
-                    // Do not persist a timeout as a user preference. Retain normal
-                    // source ordering and fallback/error handling at exhaustion.
+                if (timeout.tick(elapsed, eligible, playing = sourcePlaybackStarted)) {
+                    // Penalize this family for this episode only; do not overwrite
+                    // the manual preference or repeatedly retry its URL variants.
+                    sourcePlan.failed(link, identity)
                     Log.i(TAG, "Automatic source startup exceeded 5 seconds without playback; trying next source")
                     nextMirror()
                     return@launch
@@ -589,7 +654,12 @@ class GeneratorPlayer : FullScreenPlayer() {
         if (link == null) return
         sourceStartupJob?.cancel()
         sourceStartupJob = null
-        sourcePlaybackStarted = sameEpisode && currentSelectedLink == link && sourcePlaybackStarted
+        val previousStarted = sourcePlaybackStarted || (player as? CS3IPlayer)?.hasStartedPlayback() == true
+        if (!sameEpisode) sourceResumePosition = if (isNextEpisode) 0L else getPos()
+        else if (previousStarted) sourceResumePosition = player.getPosition() ?: sourceResumePosition
+        sourcePlaybackStarted = sameEpisode && currentSelectedLink == link && previousStarted
+        sourcePlan.attempted(link)
+        awaitingSourceFallback = false
         manuallySelectedSource = manualSelection ?: (sameEpisode && manuallySelectedSource)
         isPlayerActive.set(true)
         // manage UI
@@ -624,9 +694,9 @@ class GeneratorPlayer : FullScreenPlayer() {
                 sameEpisode,
                 url,
                 uri,
-                startPosition = if (sameEpisode) null else {
-                    if (isNextEpisode) 0L else getPos()
-                },
+                // Keep the resume target across failed startup attempts; a
+                // buffering player's temporary zero must not become the next target.
+                startPosition = sourceResumePosition,
                 subtitles,
                 if (seriesPreferences().subtitlesOff) null else
                     (if (sameEpisode) currentSelectedSubtitles else null) ?: preferredSeriesSubtitle(subtitles)
@@ -1486,7 +1556,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                         sourceStartupJob = null
                         filteredLinks.getOrNull(sourceIndex)?.let { rememberVideo(it.link) }
                     }
-                    var init = sourceIndex != startSource
+                    var init = sourceSelectionTouched || sourceIndex != startSource
                     if (subtitleGroupIndex != subtitleGroupIndexStart || subtitleOptionIndex != subtitleOptionIndexStart) {
                         init = init or if (subtitleGroupIndex <= 0) {
                             noSubtitles()
@@ -1674,6 +1744,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         sourceStartupJob?.cancel()
         sourceStartupJob = null
         currentSelectedLink?.let { link ->
+            sourcePlan.failed(link, videoIdentity(link))
             viewModel.modifyState { this.addError(link) }
         }
 
@@ -1724,13 +1795,9 @@ class GeneratorPlayer : FullScreenPlayer() {
             return
         }
 
-        val links = viewModel.state.sortLinks(currentQualityProfile)
-
-        val preferredVideo = seriesPreferences().video
-        val firstAvailableLink = links.firstOrNull {
-            it.shouldUseLink && preferredVideo != null && videoIdentity(it.link) == preferredVideo
-        }?.link ?: links.firstOrNull { it.shouldUseLink }?.link
+        val firstAvailableLink = sourcePlan.ranked(sourceCandidates(), seriesPreferences()).firstOrNull()?.id
         if (firstAvailableLink == null) {
+            if (collectingSources()) return
             noLinksFound()
             return
         }
@@ -1738,6 +1805,9 @@ class GeneratorPlayer : FullScreenPlayer() {
         if (!isPlayerActive.compareAndSet(false, true)) {
             return
         }
+        Log.i(TAG, "Source pipeline: starting after ${SystemClock.elapsedRealtime() - sourceCollectionStartedAt}ms; " +
+            "collected=${viewModel.state.links.size}; collecting=${collectingSources()}; " +
+            "savedMatch=${videoIdentity(firstAvailableLink)?.let { seriesPreferences().video?.match(it) } ?: 0}")
         loadLink(firstAvailableLink, false)
         showPlayerMetadata()
     }
@@ -1805,29 +1875,29 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
     }
 
-    private fun getNextLink(): DisplayLink? {
-        val links = viewModel.state.sortLinks(currentQualityProfile)
-        val currentIndex = links.indexOfFirst { it.link == currentSelectedLink }
-        val nextPotentialLink =
-            links.withIndex().firstOrNull { it.index > currentIndex && it.value.shouldUseLink }
-        return nextPotentialLink?.value
-    }
+    private fun getNextLink(): VideoLink? =
+        sourcePlan.ranked(sourceCandidates(), seriesPreferences()).firstOrNull()?.id
 
     override fun hasNextMirror(): Boolean {
-        return getNextLink() != null
+        return getNextLink() != null || collectingSources()
     }
 
     override fun nextMirror() {
         val nextLink = getNextLink()
         if (nextLink == null) {
-            noLinksFound()
+            if (collectingSources()) {
+                awaitingSourceFallback = true
+                // Do not close the player while useful sources are still arriving.
+                player.handleEvent(CSPlayerEvent.Pause, PlayerEventSource.UI)
+            } else noLinksFound()
             return
         }
 
-        loadLink(nextLink.link, true, manualSelection = false)
+        loadLink(nextLink, true, manualSelection = false)
     }
 
     override fun onDestroy() {
+        sourceCollectionWaitJob?.cancel()
         sourceStartupJob?.cancel()
         ResultFragment.updateUI()
         currentVerifyLink?.cancel()
@@ -1837,6 +1907,9 @@ class GeneratorPlayer : FullScreenPlayer() {
     var maxEpisodeSet: Int? = null
     var hasRequestedStamps: Boolean = false
     override fun playerPositionChanged(position: Long, duration: Long) {
+        // Preparing a failed source can briefly report position zero with a known
+        // duration. Do not overwrite the stored resume point before actual playback.
+        if (!sourcePlaybackStarted && (player as? CS3IPlayer)?.hasStartedPlayback() == false) return
         // Don't save livestream data
         if ((currentMeta as? ResultEpisode)?.tvType?.isLiveStream() == true) return
 
@@ -2429,10 +2502,9 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
 
         binding.overlayLoadingSkipButton.setOnClickListener {
-            // Mark as "success" early
-            viewModel.modifyState {
-                copy(loading = Resource.Success(Unit))
-            }
+            sourcePlan.skipRequested = true
+            // Skip waiting, not extraction. Late sources/subtitles remain available.
+            startPlayer()
         }
 
         binding.playerLoadingGoBack.setOnClickListener {
@@ -2469,31 +2541,29 @@ class GeneratorPlayer : FullScreenPlayer() {
         observe(viewModel.loadingLinks) { (loading, instance) ->
             if (instance != viewModel.state.instance) return@observe // Outdated observe
 
+            prepareSourceSession()
             when (loading) {
-                is Resource.Loading -> {
-                    releasePlayer()
-                }
-
+                is Resource.Loading -> maybeStartSource()
                 is Resource.Success -> {
-                    // provider returned false
-                    //if (it.value != true) {
-                    //    showToast(activity, R.string.unexpected_error, Toast.LENGTH_SHORT)
-                    //}
-                    startPlayer()
+                    if (awaitingSourceFallback) nextMirror() else maybeStartSource()
                 }
-
                 is Resource.Failure -> {
-                    showToast(loading.errorString, Toast.LENGTH_LONG)
-                    startPlayer()
+                    if (!isPlayerActive.get()) showToast(loading.errorString, Toast.LENGTH_LONG)
+                    if (awaitingSourceFallback) nextMirror() else maybeStartSource()
                 }
             }
         }
 
         observe(viewModel.currentLinks) { (_, instance) ->
             if (instance != viewModel.state.instance) return@observe // Outdated observe
+            prepareSourceSession()
 
             val sortedLinks = viewModel.state.sortLinks(currentQualityProfile)
             val usableLinks = sortedLinks.count { link -> link.shouldUseLink }
+            if (usableLinks > 0 && !loggedFirstSources) {
+                loggedFirstSources = true
+                Log.i(TAG, "Source pipeline: first usable sources after ${SystemClock.elapsedRealtime() - sourceCollectionStartedAt}ms; usable=$usableLinks")
+            }
 
             val turnVisible = usableLinks > 0 && viewModel.generator?.canSkipLoading == true
             val wasGone = binding.overlayLoadingSkipButton.isGone
@@ -2509,15 +2579,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                 }
             }
 
-            safe {
-                if (!isPlayerActive.get() && viewModel.state.links.any { link ->
-                        getLinkPriority(currentQualityProfile, link.first) >=
-                                QualityDataHelper.AUTO_SKIP_PRIORITY
-                    }
-                ) {
-                    startPlayer()
-                }
-            }
+            if (awaitingSourceFallback) nextMirror() else maybeStartSource()
 
             if (turnVisible && wasGone) {
                 binding.overlayLoadingSkipButton.requestFocus()

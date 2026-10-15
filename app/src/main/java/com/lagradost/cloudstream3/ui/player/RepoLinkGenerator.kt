@@ -9,6 +9,8 @@ import com.lagradost.cloudstream3.ui.result.ResultEpisode
 import com.lagradost.cloudstream3.utils.AppContextUtils.html
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -151,8 +153,11 @@ class RepoLinkGenerator(
             }
         )
 
+        // A canceled preload must not mark a partial cache as fully collected,
+        // even when a provider/API wrapper swallowed its cancellation exception.
+        currentCoroutineContext().ensureActive()
         synchronized(currentCache) {
-            currentCache.saturated = currentCache.linkCache.isNotEmpty()
+            currentCache.saturated = result && currentCache.linkCache.isNotEmpty()
             currentCache.lastCachedTimestamp = unixTime
         }
 
