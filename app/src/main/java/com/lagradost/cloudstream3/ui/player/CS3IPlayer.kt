@@ -1510,12 +1510,6 @@ class CS3IPlayer : IPlayer {
                     }
                 }
 
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    // True only when READY, playWhenReady and not suppressed: a
-                    // buffered/autoplay-requested source must not count as started.
-                    if (isPlaying) hasActuallyPlayed = true
-                }
-
                 // fixme: Use onPlaybackStateChanged(int) and onPlayWhenReadyChanged(boolean, int) instead.
                 @Suppress("OVERRIDE_DEPRECATION")
                 override fun onPlayerStateChanged(playWhenReady: Boolean, playbackState: Int) {
@@ -1614,6 +1608,8 @@ class CS3IPlayer : IPlayer {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     super.onIsPlayingChanged(isPlaying)
                     if (isPlaying) {
+                        // Actual playback, not the cached autoplay/resume intent.
+                        hasActuallyPlayed = true
                         event(RequestAudioFocusEvent())
                         onRenderFirst()
                     }
