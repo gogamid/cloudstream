@@ -270,9 +270,6 @@ class GeneratorPlayer : FullScreenPlayer() {
     override fun playerStatusChanged() {
         super.playerStatusChanged()
         if (player.getIsPlaying()) {
-            sourcePlaybackStarted = true
-            sourceStartupJob?.cancel()
-            sourceStartupJob = null
             viewModel.forceClearCache = false
         }
     }
@@ -571,11 +568,16 @@ class GeneratorPlayer : FullScreenPlayer() {
                 // A suspended main thread/background interval is not startup time.
                 val elapsed = (now - previous).coerceAtMost(250L)
                 previous = now
-                if (player.getIsPlaying() || sourcePlaybackStarted) return@launch
+                val actuallyStarted = (player as? CS3IPlayer)?.hasStartedPlayback() ?: player.getIsPlaying()
+                if (actuallyStarted || sourcePlaybackStarted) {
+                    sourcePlaybackStarted = true
+                    return@launch
+                }
                 val eligible = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && !isDialogOpen()
                 if (timeout.tick(elapsed, eligible, playing = false)) {
                     // Do not persist a timeout as a user preference. Retain normal
                     // source ordering and fallback/error handling at exhaustion.
+                    Log.i(TAG, "Automatic source startup exceeded 5 seconds without playback; trying next source")
                     nextMirror()
                     return@launch
                 }

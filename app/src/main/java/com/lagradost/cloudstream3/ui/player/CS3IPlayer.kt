@@ -197,6 +197,10 @@ class CS3IPlayer : IPlayer {
     override fun getDuration(): Long? = exoPlayer?.duration
     override fun getPosition(): Long? = exoPlayer?.currentPosition
     override fun getIsPlaying(): Boolean = isPlaying
+
+    // Separate actual playback from the cached autoplay/resume intent above.
+    private var hasActuallyPlayed = false
+    fun hasStartedPlayback(): Boolean = hasActuallyPlayed || exoPlayer?.isPlaying == true
     override fun getPlaybackSpeed(): Float = playBackSpeed
 
     /**
@@ -607,6 +611,7 @@ class CS3IPlayer : IPlayer {
     }
 
     private fun releasePlayer(saveTime: Boolean = true) {
+        hasActuallyPlayed = false
         Log.i(TAG, "releasePlayer")
         eventLooperIndex += 1
         if (saveTime)
@@ -1503,6 +1508,12 @@ class CS3IPlayer : IPlayer {
                         event(TracksChangedEvent())
                         event(SubtitlesUpdatedEvent())
                     }
+                }
+
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    // True only when READY, playWhenReady and not suppressed: a
+                    // buffered/autoplay-requested source must not count as started.
+                    if (isPlaying) hasActuallyPlayed = true
                 }
 
                 // fixme: Use onPlaybackStateChanged(int) and onPlayWhenReadyChanged(boolean, int) instead.
