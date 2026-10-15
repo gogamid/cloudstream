@@ -260,6 +260,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             .setNeutralButton(R.string.discover_clear, null)
             .create()
         dialog.show()
+        com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(dialog, dialog.getButton(AlertDialog.BUTTON_POSITIVE))
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
             pending.clear()
             for (i in options.indices) dialog.listView.setItemChecked(i, false)

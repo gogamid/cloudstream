@@ -147,5 +147,6 @@ class QualityProfileDialog private constructor(
             }
         }
         super.show()
+        com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(this)
     }
 }

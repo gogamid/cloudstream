@@ -301,6 +301,7 @@ class SearchFragment : BaseFragment<FragmentSearchBinding>(
                     )
                 builder.setContentView(selectMainpageBinding.root)
                 builder.show()
+                com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(builder)
                 builder.let { dialog ->
                     val previousSelectedApis = selectedApis.toSet()
                     val previousSelectedSearchTypes = selectedSearchTypes.toSet()

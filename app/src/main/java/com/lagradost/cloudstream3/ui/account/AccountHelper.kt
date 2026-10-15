@@ -57,6 +57,7 @@ object AccountHelper {
 
         var currentEditAccount = account
         val dialog = builder.show()
+        com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(dialog)
 
         if (!isNewAccount) binding.title.setText(R.string.edit_account)
 
@@ -173,6 +174,7 @@ object AccountHelper {
             com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(sheetBinding.root, dialog = true)
             bottomSheetDialog.setContentView(sheetBinding.root)
             bottomSheetDialog.show()
+            com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(bottomSheetDialog)
 
             sheetBinding.apply {
                 text1.text = context.getString(R.string.edit_profile_image_title)

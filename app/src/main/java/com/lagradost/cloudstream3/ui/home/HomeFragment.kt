@@ -399,6 +399,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
 
             builder.setContentView(binding.root)
             builder.show()
+            com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(builder)
             builder.let { dialog ->
                 val isMultiLang = getApiProviderLangSettings().let { set ->
                     set.size > 1 || set.contains(AllLanguagesName)

@@ -109,6 +109,7 @@ object SingleSelectionHelper {
     ) {
         if (this == null) return
 
+        DialogApplyShortcut.install(dialog)
         val realShowApply = showApply || isMultiSelect
         val listView = binding.listview1
         val textView = binding.text1
@@ -193,6 +194,7 @@ object SingleSelectionHelper {
     ) {
         if (this == null) return
 
+        DialogApplyShortcut.install(dialog)
         TvTextInputNavigation.prepare(binding.root, dialog = true)
         binding.nginxTextInput.nextFocusDownId = binding.applyBtt.id
         val inputView = binding.nginxTextInput

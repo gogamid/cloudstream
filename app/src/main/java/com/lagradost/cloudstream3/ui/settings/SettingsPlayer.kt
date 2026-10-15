@@ -46,6 +46,19 @@ class SettingsPlayer : BasePreferenceFragmentCompat() {
             true
         }
 
+        val applyPreference = findPreference<androidx.preference.Preference>("dialog_apply_button_editor")
+        fun updateApplySummary() {
+            val key = com.lagradost.cloudstream3.utils.DialogApplyShortcut.load(requireContext())
+            val name = key?.let(com.lagradost.cloudstream3.ui.player.RemoteButtonMappings::keyName)
+                ?: getString(R.string.remote_disabled)
+            applyPreference?.summary = getString(R.string.dialog_apply_summary, name)
+        }
+        updateApplySummary()
+        applyPreference?.setOnPreferenceClickListener {
+            DialogApplyButtonSettings.show(requireContext(), ::updateApplySummary)
+            true
+        }
+
         //Hide specific prefs on TV/EMULATOR
         hidePrefs(
             listOf(

@@ -87,7 +87,11 @@ internal object FilterDefaultsDialog {
                                         save(value.copy(genreIds = selected, genreNames = genres.filter { it.id in selected }.map { it.name }.toSet()))
                                     }.setNeutralButton(R.string.filter_defaults_all_genres) { _, _ ->
                                         save(value.copy(genreIds = emptySet(), genreNames = emptySet()))
-                                    }.setNegativeButton(android.R.string.cancel, null).show()
+                                    }.setNegativeButton(android.R.string.cancel, null).show().also { dialog ->
+                                        com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(
+                                            dialog, dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                                        )
+                                    }
                             } catch (cancel: CancellationException) {
                                 loading.dismiss()
                                 throw cancel

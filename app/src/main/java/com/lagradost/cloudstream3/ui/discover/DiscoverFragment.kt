@@ -160,6 +160,7 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
             .setNeutralButton(R.string.discover_clear, null)
             .create()
         dialog.show()
+        com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(dialog, dialog.getButton(AlertDialog.BUTTON_POSITIVE))
         // Clearing previews inside the dialog; Cancel still aborts everything.
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
             pending.clear()

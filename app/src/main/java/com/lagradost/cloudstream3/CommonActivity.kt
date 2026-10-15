@@ -539,6 +539,9 @@ object CommonActivity {
     fun dispatchKeyEvent(act: Activity?, event: KeyEvent?): Boolean? {
         if (act == null) return null
         val currentFocus = act.currentFocus
+        if (event != null && com.lagradost.cloudstream3.utils.DialogApplyShortcut.handle(act.window.decorView, event)) {
+            return true
+        }
         if (event != null && com.lagradost.cloudstream3.utils.TvTextInputNavigation.handle(currentFocus, event)) {
             keyEventListener?.invoke(Pair(event, true))
             return true

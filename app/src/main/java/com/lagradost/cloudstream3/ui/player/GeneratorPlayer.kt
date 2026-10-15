@@ -653,6 +653,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
         binding.subtitlesSearch.nextFocusDownId = R.id.subtitle_adapter
         dialog.setContentView(binding.root)
+        com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(dialog)
         fixSystemBarsPadding(binding.root)
 
         var currentSubtitles: List<AbstractSubtitleEntities.SubtitleEntity> = emptyList()
@@ -1085,6 +1086,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                 selectSourceDialog = sourceDialog
 
                 sourceDialog.show()
+                com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(sourceDialog)
                 val providerList = binding.sortProviders
                 val subtitleList = binding.sortSubtitles
                 val subtitleOptionList = binding.sortSubtitlesOptions
@@ -1482,6 +1484,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                 this.selectTrackDialog = trackDialog
                 trackDialog.setContentView(binding.root)
                 trackDialog.show()
+                com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(trackDialog)
 
                 fixSystemBarsPadding(binding.root)
 

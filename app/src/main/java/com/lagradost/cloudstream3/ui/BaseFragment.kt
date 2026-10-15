@@ -79,6 +79,9 @@ private interface BaseFragmentHelper<T : ViewBinding> {
             view, dialog = this is DialogFragment
         )
         binding?.let { onBindingCreated(it, savedInstanceState) }
+        (this as? DialogFragment)?.dialog?.let {
+            com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(it)
+        }
     }
 
     /**

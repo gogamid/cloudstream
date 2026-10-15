@@ -518,6 +518,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         }
         this.selectSubtitlesDialog = dialog
         dialog.show()
+        com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(dialog)
 
         val isPortrait =
             ctx.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
