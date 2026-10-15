@@ -48,8 +48,6 @@ import androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.Renderer.STATE_ENABLED
-import androidx.media3.exoplayer.Renderer.STATE_STARTED
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.dash.DashMediaSource
@@ -562,13 +560,18 @@ class CS3IPlayer : IPlayer {
     private var currentSubtitleOffset: Long = 0
 
     override fun setSubtitleOffset(offset: Long) {
+        val changed = currentSubtitleOffset != offset
         currentSubtitleOffset = offset
         CustomDecoder.subtitleOffset = offset
-        if (currentTextRenderer?.state == STATE_ENABLED || currentTextRenderer?.state == STATE_STARTED) {
-            exoPlayer?.currentPosition?.also { pos ->
-                // This seems to properly refresh all subtitles
-                // It needs to be done as all subtitle cues with timings are pre-processed
-                currentTextRenderer?.resetPosition(pos, false)
+        if (changed) exoPlayer?.let { exo ->
+            if (exo.playbackState == Player.STATE_READY) {
+                // Let ExoPlayer flush/reset the subtitle pipeline on its playback
+                // thread, with correct renderer timeline offsets and time units.
+                // A 1ms seek avoids its same-position no-op optimization.
+                val position = exo.currentPosition
+                val duration = exo.duration
+                val target = SubtitleSyncSeek.target(position, duration)
+                exo.seekTo(target)
             }
         }
     }

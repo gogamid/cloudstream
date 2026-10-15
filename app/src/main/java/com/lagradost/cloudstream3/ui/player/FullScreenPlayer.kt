@@ -501,6 +501,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     private fun showSubtitleOffsetDialog() {
         val ctx = context ?: return
+        val resumeAfterSync = player.getIsPlaying()
         // Pause player because the subtitles cannot be continuously updated to follow playback.
         player.handleEvent(
             CSPlayerEvent.Pause,
@@ -609,18 +610,17 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             dialog.setOnDismissListener {
                 selectSubtitlesDialog = null
                 activity?.hideSystemUI()
+                if (resumeAfterSync) player.handleEvent(CSPlayerEvent.Play, PlayerEventSource.UI)
             }
             applyBtt.setOnClickListener {
                 selectSubtitlesDialog = null
                 subtitleDelay = currentOffset
                 dialog.dismissSafe(activity)
-                player.seekTime(1L)
             }
             resetBtt.setOnClickListener {
                 selectSubtitlesDialog = null
                 subtitleDelay = 0
                 dialog.dismissSafe(activity)
-                player.seekTime(1L)
             }
             cancelBtt.setOnClickListener {
                 selectSubtitlesDialog = null
