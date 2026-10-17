@@ -34,7 +34,6 @@ import androidx.core.text.toSpanned
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Format.NO_VALUE
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
@@ -1110,7 +1109,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     private fun addAndSelectSubtitles(
         vararg subtitleData: SubtitleData
     ) {
-        if (subtitleData.isEmpty()) return
+        if (subtitleData.isEmpty() || !isAdded || view == null) return
         val ctx = context ?: return
         val selectedSubtitle = subtitleData.first()
         viewModel.addSubtitles(subtitleData.toSet())
@@ -1168,7 +1167,8 @@ class GeneratorPlayer : FullScreenPlayer() {
     /** Will toast both when an error is found and when a subtitle is selected,
      * so only use from a user click and not a background process */
     private fun addFirstSub(query: SubtitleSearch) =
-        viewModel.viewModelScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val instance = viewModel.state.instance
             // async should not have a race condition if they are on the same group
             var hasSelectASubtitle = false
 
@@ -1220,17 +1220,20 @@ class GeneratorPlayer : FullScreenPlayer() {
                     }
 
                     // checks for both a race condition and if any of the subs generated is new
-                    if (this.isActive && !viewModel.state.subtitles.containsAll(subtitles) && !hasSelectASubtitle) {
+                    if (this.isActive && viewModel.state.instance == instance &&
+                        !viewModel.state.subtitles.containsAll(subtitles) && !hasSelectASubtitle) {
                         hasSelectASubtitle = true
                         runOnMainThread {
-                            addAndSelectSubtitles(*subtitles.toTypedArray())
+                            if (isActive && viewModel.state.instance == instance) {
+                                addAndSelectSubtitles(*subtitles.toTypedArray())
+                            }
                         }
                         break
                     }
                 }
             }
             // maybe better error here?
-            if (!hasSelectASubtitle && this.isActive) {
+            if (!hasSelectASubtitle && this.isActive && viewModel.state.instance == instance) {
                 showToast(R.string.no_subtitles)
             }
         }
@@ -1386,7 +1389,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                         }
 
                         providerList.setOnItemLongClickListener { _, _, position, _ ->
-                            sortedLinks.getOrNull(position)?.link?.first?.url?.let {
+                            filteredLinks.getOrNull(position)?.link?.first?.url?.let {
                                 clipboardHelper(
                                     txt(R.string.video_source),
                                     it
