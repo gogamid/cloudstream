@@ -501,7 +501,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     private fun showSubtitleOffsetDialog() {
         val ctx = context ?: return
-        val resumeAfterSync = player.getIsPlaying()
+        val resumeAfterSync = player.getPlayWhenReady()
         // Pause player because the subtitles cannot be continuously updated to follow playback.
         player.handleEvent(
             CSPlayerEvent.Pause,
@@ -641,7 +641,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     private fun showSpeedDialog() {
         val act = activity ?: return
-        val isPlaying = player.getIsPlaying()
+        val isPlaying = player.getPlayWhenReady()
         player.handleEvent(CSPlayerEvent.Pause, PlayerEventSource.UI)
 
         val binding: SpeedDialogBinding = SpeedDialogBinding.inflate(

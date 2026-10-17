@@ -211,6 +211,8 @@ interface IPlayer {
     fun setPlaybackSpeed(speed: Float)
 
     fun getIsPlaying(): Boolean
+    /** Playback intent stays true while buffering; use when restoring after dialogs. */
+    fun getPlayWhenReady(): Boolean = getIsPlaying()
     /** Current player duration in milliseconds */
     fun getDuration(): Long?
     /** Current player position in milliseconds */

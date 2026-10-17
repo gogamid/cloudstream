@@ -40,7 +40,9 @@ internal class SourcePlaybackPlan<T>(private val keyOf: (T) -> Any? = { it }) {
     /** The grace period starts with the first usable source, never resets on new arrivals. */
     fun ready(nowMs: Long, candidates: List<Candidate<T>>, preferences: SeriesSourcePreferences,
               collecting: Boolean, mayStartEarly: Boolean, instantPriority: Int): Boolean {
-        val available = ranked(candidates, preferences)
+        // Readiness only needs membership/matches, not an O(n log n) ranking
+        // on every timer tick. Rank once when an attempt actually starts.
+        val available = candidates.filter { it.allowed && keyOf(it.id) !in attempted }
         if (available.isEmpty()) return false
         if (!collecting || skipRequested) return true
         if (!mayStartEarly) return false

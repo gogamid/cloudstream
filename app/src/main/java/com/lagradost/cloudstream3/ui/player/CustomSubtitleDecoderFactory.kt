@@ -281,7 +281,9 @@ class CustomDecoder(private val fallbackFormat: Format?) : SubtitleParser {
         return subtitleParser
     }
 
-    val currentSubtitleCues = mutableListOf<SubtitleCue>()
+    private val currentSubtitleCues = SubtitleCueStore<SubtitleCue>()
+
+    fun subtitleCuesSnapshot(): List<SubtitleCue> = currentSubtitleCues.snapshot()
 
 
     override fun parse(
@@ -382,10 +384,10 @@ class CustomSubtitleDecoderFactory : SubtitleDecoderFactory {
         ).contains(format.sampleMimeType)
     }
 
-    private var latestDecoder: WeakReference<CustomDecoder>? = null
+    @Volatile private var latestDecoder: WeakReference<CustomDecoder>? = null
 
     fun getSubtitleCues(): List<SubtitleCue>? {
-        return latestDecoder?.get()?.currentSubtitleCues
+        return latestDecoder?.get()?.subtitleCuesSnapshot()
     }
 
     /**

@@ -1,7 +1,9 @@
 package com.lagradost.cloudstream3.network
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.Context
+import android.content.res.Configuration
 import android.net.http.SslError
 import android.webkit.*
 import com.lagradost.api.Log
@@ -17,6 +19,11 @@ import com.lagradost.cloudstream3.utils.Coroutines.runOnMainThread
 import com.lagradost.nicehttp.requestCreator
 import io.ktor.http.Url
 import io.ktor.http.decodeURLPart
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -48,14 +55,18 @@ actual class WebViewResolver actual constructor(
         actual var webViewUserAgent: String? = null
         actual val DEFAULT_TIMEOUT = 60_000L
         private const val TAG = "WebViewResolver"
+        private val tvResolverSlots = Semaphore(2)
 
         @JvmName("getWebViewUserAgent1")
         fun getWebViewUserAgent(): String? {
             return webViewUserAgent ?: (getContext() as? Context)?.let { ctx ->
                 runBlocking {
                     mainWork {
-                        WebView(ctx).settings.userAgentString.also { userAgent ->
-                            webViewUserAgent = userAgent
+                        val view = WebView(ctx)
+                        try {
+                            view.settings.userAgentString.also { webViewUserAgent = it }
+                        } finally {
+                            view.destroy()
                         }
                     }
                 }
@@ -102,27 +113,50 @@ actual class WebViewResolver actual constructor(
         request: Request,
         requestCallBack: (Request) -> Boolean
     ): Pair<Request?, List<Request>> {
+        val context = getContext() as? Context
+        val isTv = context?.resources?.configuration?.uiMode?.and(Configuration.UI_MODE_TYPE_MASK) ==
+            Configuration.UI_MODE_TYPE_TELEVISION
+        val lowRam = (context?.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice == true
+        if (isTv || lowRam) tvResolverSlots.acquire()
+        try {
+            return resolveRequest(request, requestCallBack)
+        } finally {
+            if (isTv || lowRam) tvResolverSlots.release()
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private suspend fun resolveRequest(
+        request: Request,
+        requestCallBack: (Request) -> Boolean
+    ): Pair<Request?, List<Request>> {
         val url = request.url.toString()
         val headers = request.headers
         Log.i(TAG, "Initial web-view request: $url")
         var webView: WebView? = null
         // Extra assurance it exits as it should.
-        var shouldExit = false
+        val shouldExit = AtomicBoolean(false)
 
-        fun destroyWebView() {
-            main {
-                webView?.stopLoading()
-                webView?.destroy()
-                webView = null
-                shouldExit = true
+        fun destroyOnMain() {
+            val view = webView
+            webView = null
+            if (view != null) {
+                runCatching { view.stopLoading() }
+                runCatching { view.destroy() }
                 Log.i(TAG, "Destroyed webview")
             }
         }
 
-        var fixedRequest: Request? = null
+        fun destroyWebView() {
+            shouldExit.set(true)
+            main { destroyOnMain() }
+        }
+
+        val fixedRequest = AtomicReference<Request?>()
         val extraRequestList = atomicListOf<Request>()
 
         main {
+            if (shouldExit.get()) return@main
             try {
                 webView = WebView(
                     (getContext() as? Context)
@@ -142,6 +176,12 @@ actual class WebViewResolver actual constructor(
                 }
 
                 webView?.webViewClient = object : WebViewClient() {
+                    override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                        Log.i(TAG, "WebView renderer exited; ending resolver safely")
+                        destroyWebView()
+                        return true
+                    }
+
                     override fun shouldInterceptRequest(
                         view: WebView,
                         request: WebResourceRequest
@@ -151,15 +191,18 @@ actual class WebViewResolver actual constructor(
 
                         if (script != null) {
                             runOnMainThread {
-                                view.evaluateJavascript(script)
-                                { scriptCallback?.invoke(it) }
+                                if (!shouldExit.get() && webView === view) {
+                                    view.evaluateJavascript(script) { result ->
+                                        if (!shouldExit.get()) safe { scriptCallback?.invoke(result) }
+                                    }
+                                }
                             }
                         }
 
                         if (interceptUrl.containsMatchIn(webViewUrl)) {
-                            fixedRequest = request.toRequest()?.also {
-                                requestCallBack(it)
-                            }
+                            fixedRequest.set(request.toRequest()?.also {
+                                safe { requestCallBack(it) }
+                            })
                             Log.i(TAG, "Web-view request finished: $webViewUrl")
                             destroyWebView()
                             return@runBlocking null
@@ -167,7 +210,7 @@ actual class WebViewResolver actual constructor(
 
                         if (additionalUrls.any { it.containsMatchIn(webViewUrl) }) {
                             request.toRequest()?.also {
-                                if (requestCallBack(it)) destroyWebView()
+                                if (safe { requestCallBack(it) } == true) destroyWebView()
                             }?.let(extraRequestList::add)
                         }
 
@@ -257,25 +300,29 @@ actual class WebViewResolver actual constructor(
                 webView?.loadUrl(url, headers.toMap())
             } catch (e: Exception) {
                 logError(e)
+                destroyWebView()
             }
         }
 
-        var loop = 0
-        // Timeouts after this amount, 60s
-        val totalTime = timeout
+        try {
+            var loop = 0
+            val delayTime = 100L
+            while (loop < timeout / delayTime && !shouldExit.get()) {
+                fixedRequest.get()?.let { return it to extraRequestList }
+                delay(delayTime)
+                loop += 1
+            }
 
-        val delayTime = 100L
-
-        // A bit sloppy, but couldn't find a better way
-        while (loop < totalTime / delayTime && !shouldExit) {
-            if (fixedRequest != null) return fixedRequest to extraRequestList
-            delay(delayTime)
-            loop += 1
+            if (!shouldExit.get()) Log.i(TAG, "Web-view timeout after ${timeout / 1000}s")
+            return fixedRequest.get() to extraRequestList
+        } finally {
+            // Cleanup must finish before releasing the TV concurrency slot, even
+            // if a provider/episode job is canceled during the polling delay.
+            shouldExit.set(true)
+            withContext(NonCancellable) {
+                mainWork { destroyOnMain() }
+            }
         }
-
-        Log.i(TAG, "Web-view timeout after ${totalTime / 1000}s")
-        destroyWebView()
-        return fixedRequest to extraRequestList
     }
 }
 

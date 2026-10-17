@@ -6,6 +6,8 @@ import com.lagradost.cloudstream3.APIHolder.unixTime
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.ui.APIRepository
 import com.lagradost.cloudstream3.ui.result.ResultEpisode
+import com.lagradost.cloudstream3.ui.settings.Globals.TV
+import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.utils.AppContextUtils.html
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
@@ -18,7 +20,7 @@ data class Cache(
     val linkCache: MutableSet<ExtractorLink>,
     val subtitleCache: MutableSet<SubtitleData>,
     /** When it was last updated */
-    var lastCachedTimestamp: Long = unixTime,
+    @Volatile var lastCachedTimestamp: Long = unixTime,
     /** If it has fully loaded */
     var saturated: Boolean,
 )
@@ -53,6 +55,11 @@ class RepoLinkGenerator(
         val current = videos.getOrNull(offset) ?: return false
 
         val currentCache = synchronized(cache) {
+            if (isLayout(TV)) {
+                PlaybackResourcePolicy.episodeCacheEvictions(
+                    cache.mapValues { it.value.lastCachedTimestamp }, current.apiName to current.id, unixTime
+                ).forEach { cache.remove(it) }
+            }
             cache[current.apiName to current.id] ?: Cache(
                 mutableSetOf(),
                 mutableSetOf(),

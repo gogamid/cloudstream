@@ -89,6 +89,7 @@ import com.lagradost.cloudstream3.ui.player.live.LiveHelper
 import com.lagradost.cloudstream3.ui.player.live.PREFERRED_LIVE_OFFSET
 import com.lagradost.cloudstream3.ui.settings.Globals.EMULATOR
 import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
+import com.lagradost.cloudstream3.ui.settings.Globals.TV
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.ui.subtitles.SaveCaptionStyle
 import com.lagradost.cloudstream3.ui.subtitles.SubtitlesFragment.Companion.applyStyle
@@ -195,11 +196,13 @@ class CS3IPlayer : IPlayer {
     override fun getDuration(): Long? = exoPlayer?.duration
     override fun getPosition(): Long? = exoPlayer?.currentPosition
     override fun getIsPlaying(): Boolean = isPlaying
+    override fun getPlayWhenReady(): Boolean = exoPlayer?.playWhenReady ?: isPlaying
 
     // Separate actual playback from the cached autoplay/resume intent above.
     private var hasActuallyPlayed = false
     fun hasStartedPlayback(): Boolean = hasActuallyPlayed || exoPlayer?.isPlaying == true
     fun isActuallyPlaying(): Boolean = exoPlayer?.isPlaying == true
+    fun isPlaybackReady(): Boolean = exoPlayer?.playbackState == Player.STATE_READY
     override fun getPlaybackSpeed(): Float = playBackSpeed
 
     /**
@@ -226,13 +229,18 @@ class CS3IPlayer : IPlayer {
         }
     }
 
+    private val playbackOperations = PlaybackOperationGuard()
+
     @AnyThread
     fun event(event: PlayerEvent) {
         // Ensure that all work is done on the main thread.
         if (Looper.getMainLooper().isCurrentThread) {
             eventHandler?.invoke(event)
-        } else runOnMainThread {
-            eventHandler?.invoke(event)
+        } else {
+            val token = playbackOperations.token()
+            runOnMainThread {
+                if (playbackOperations.isCurrent(token)) eventHandler?.invoke(event)
+            }
         }
     }
 
@@ -244,6 +252,7 @@ class CS3IPlayer : IPlayer {
     var isPlayerActive: Boolean = false
 
     override fun releaseCallbacks() {
+        playbackOperations.advance()
         checkpointHandler.removeCallbacks(checkpointRunnable)
         eventHandler = null
         if (isPlayerActive) {
@@ -304,9 +313,10 @@ class CS3IPlayer : IPlayer {
         if (sameEpisode) {
             saveData()
         } else {
-            currentSubtitles = subtitle
             playbackPosition = 0
         }
+        currentSubtitles = subtitle
+        subtitleHelper.setAllSubtitles(subtitles)
 
         startPosition?.let {
             playbackPosition = it
@@ -317,6 +327,8 @@ class CS3IPlayer : IPlayer {
 
         // release the current exoplayer and cache
         releasePlayer()
+        currentLink = link
+        currentDownloadedFile = data
 
         if (link != null) {
             // only video support atm
@@ -529,6 +541,17 @@ class CS3IPlayer : IPlayer {
             )
             return false
         }
+        // Embedded tracks belong to the video stream, not external media sources.
+        // They can arrive after preparation; never reload the whole player to attach one.
+        if (subtitle.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO) {
+            exoPlayer?.currentTracks?.groups?.filter { it.type == TRACK_TYPE_TEXT }
+                ?.getTrack(subtitle.getId())?.let { (group, index) ->
+                    trackSelector.setParameters(trackSelector.buildUponParameters()
+                        .setTrackTypeDisabled(TRACK_TYPE_TEXT, false)
+                        .setOverrideForType(TrackSelectionOverride(group, index)))
+                }
+            return false
+        }
         // Handle subtitle based on status
         when (subtitleHelper.subtitleStatus(subtitle)) {
             SubtitleStatus.REQUIRES_RELOAD -> {
@@ -559,6 +582,7 @@ class CS3IPlayer : IPlayer {
     }
 
     private var currentSubtitleOffset: Long = 0
+    @Volatile private var currentSubtitleDecoder: CustomSubtitleDecoderFactory? = null
 
     override fun setSubtitleOffset(offset: Long) {
         val changed = currentSubtitleOffset != offset
@@ -615,13 +639,13 @@ class CS3IPlayer : IPlayer {
     }
 
     private fun releasePlayer(saveTime: Boolean = true) {
+        playbackOperations.advance()
         hasActuallyPlayed = false
         Log.i(TAG, "releasePlayer")
         eventLooperIndex += 1
         if (saveTime)
             updatedTime()
 
-        currentTextRenderer = null
         currentSubtitleDecoder = null
 
         exoPlayer?.apply {
@@ -906,8 +930,6 @@ class CS3IPlayer : IPlayer {
             return trackSelector
         }
 
-        private var currentSubtitleDecoder: CustomSubtitleDecoderFactory? = null
-        private var currentTextRenderer: TextRenderer? = null
     }
 
     private fun getCurrentTimestamp(writePosition: Long? = null): VideoSkipStamp? {
@@ -1233,8 +1255,7 @@ class CS3IPlayer : IPlayer {
                                 // Upgrade CustomSubtitleDecoderFactory when media3 supports it
                                 @Suppress("DEPRECATION")
                                 experimentalSetLegacyDecodingEnabled(true)
-                            }.also { renderer ->
-                                currentTextRenderer = renderer
+                            }.also {
                                 currentSubtitleDecoder = decoder
                             }
                             currentTextRenderer
@@ -1253,15 +1274,12 @@ class CS3IPlayer : IPlayer {
                 .setLoadControl(
                     DefaultLoadControl.Builder()
                         .setTargetBufferBytes(
-                            if (cacheSize <= 0) {
-                                DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES
-                            } else {
-                                if (cacheSize > Int.MAX_VALUE) Int.MAX_VALUE else cacheSize.toInt()
-                            }
+                            PlaybackResourcePolicy.targetBufferBytes(isLayout(TV), cacheSize,
+                                DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES)
                         )
                         .setBackBuffer(
-                            30000,
-                            true
+                            PlaybackResourcePolicy.backBufferMs(isLayout(TV)),
+                            !isLayout(TV)
                         )
                         .setBufferDurationsMs(
                             DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
@@ -1746,7 +1764,9 @@ class CS3IPlayer : IPlayer {
         interceptor: Interceptor?,
     ): Pair<List<SingleSampleMediaSource>, List<SubtitleData>> {
         val activeSubtitles = ArrayList<SubtitleData>()
-        val subSources = subHelper.getAllSubtitles().mapNotNull { sub ->
+        val subSources = PlaybackResourcePolicy.externalSubtitles(
+            subHelper.getAllSubtitles(), currentSubtitles, isLayout(TV)
+        ).mapNotNull { sub ->
             val subConfig = MediaItem.SubtitleConfiguration.Builder(sub.getFixedUrl().toUri())
                 .setMimeType(sub.mimeType)
                 .setLanguage("_${sub.name}")
@@ -1802,17 +1822,18 @@ class CS3IPlayer : IPlayer {
 
     @MainThread
     private fun loadTorrent(context: Context, link: ExtractorLink) {
+        val token = playbackOperations.token()
         ioSafe {
             // we check exoPlayer a lot here, and that is because we don't want to load exo after
             // the user has left the player, in the case that the user click back when this is
             // happening
             try {
-                if (exoPlayer == null) return@ioSafe
+                if (!playbackOperations.isCurrent(token) || exoPlayer == null) return@ioSafe
                 val (newLink, status) = Torrent.transformLink(link)
                 val hash = status.hash
-                if (exoPlayer == null) return@ioSafe
+                if (!playbackOperations.isCurrent(token)) return@ioSafe
                 runOnMainThread {
-                    if (exoPlayer == null) return@runOnMainThread
+                    if (!playbackOperations.isCurrent(token) || exoPlayer == null) return@runOnMainThread
                     releasePlayer()
                     if (hash != null) {
                         torrentEventLooper(hash)
@@ -1820,7 +1841,9 @@ class CS3IPlayer : IPlayer {
                     loadOnlinePlayer(context, newLink)
                 }
             } catch (t: Throwable) {
-                event(ErrorEvent(t))
+                runOnMainThread {
+                    if (playbackOperations.isCurrent(token)) event(ErrorEvent(t))
+                }
             }
         }
     }
@@ -2008,7 +2031,9 @@ class CS3IPlayer : IPlayer {
     override fun reloadPlayer(context: Context) {
         Log.i(TAG, "reloadPlayer")
 
+        val resumePlayback = getPlayWhenReady()
         releasePlayer(false)
+        isPlaying = resumePlayback
         currentLink?.let {
             loadOnlinePlayer(context, it)
         } ?: currentDownloadedFile?.let {

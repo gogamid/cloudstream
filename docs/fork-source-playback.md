@@ -90,3 +90,41 @@ manual selection across episodes/restarts, a dead first mirror, partial preload,
 late subtitles, resume fallback, and subtitle sync. Aggregate `Source pipeline:`
 logs record first usable arrival and initial selection timing without including
 source URLs or credentials. Passing unit tests is not proof of seamless playback.
+
+## TV memory and interaction hardening
+
+The Smart TV Pro exit history reported foreground LOW_MEMORY terminations with
+248–333 MB application PSS, without a retained Java exception trace. Its reported
+RAM is about 1.7 GiB and it runs a 32-bit Android userspace. This confirms memory
+pressure for those exits, not the cause of every reported interruption.
+
+- TV uses a 32 MiB default media sample-buffer target and no 30-second rewind
+  back-buffer. Explicit RAM-buffer preferences remain honored; this is not a cap
+  on total process memory and does not restrict video resolution.
+- TV attaches only the selected external subtitle to the media pipeline; all
+  subtitle descriptors remain selectable. Switching to an unattached external
+  track uses the existing reload path. Embedded tracks are selected directly.
+- Subtitle-arrival bursts are coalesced, and automatic subtitle reloads wait for
+  a ready player outside dialogs. Automatic reloads preserve play/pause intent.
+- Source errors and fallback wait while dialogs/background lifecycle transitions
+  are active. New source attempts invalidate deferred work, including reselecting
+  the same URL. Stale source-dialog Apply actions cannot alter a new episode.
+- Playback intent (`playWhenReady`) rather than cached actual-playing status is
+  restored after dialogs, so opening a dialog during buffering does not leave
+  playback silently paused. Intentionally paused startup has no timeout budget.
+- Candidate descriptors are cached per sorted state; readiness does not sort the
+  whole source pool on each timer tick. TV retains at most four episode link-cache
+  entries. Preloading waits for current collection and active dialogs to finish.
+- Subtitle sync reads synchronized cue snapshots rather than a decoder-mutated
+  live list. Decoder references are player-local, not shared between players.
+- WebView resolvers always destroy their WebViews on cancellation, including
+  cancellation during polling. TV/low-RAM devices use at most two resolver
+  WebViews concurrently. Renderer-process loss is handled by ending that resolver,
+  and JavaScript callbacks do not act on already-destroyed views. These changes
+  cover the built-in resolver, not arbitrary WebViews created inside plugins.
+
+`PlaybackSafetyTest` covers operation invalidation, concurrent generation updates,
+TV/phone buffer policy, selected/embedded subtitle attachment, bounded episode
+caches, and concurrent decoder cue snapshots/resets. Real TV testing is required
+for media codec turnover, WebView renderer death, rapid dialog/source changes,
+subtitle cycling/file loading, and memory behavior with actual providers.
