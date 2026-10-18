@@ -49,7 +49,16 @@ Apply and Discover/Library/Home behavior are inherited unchanged from the base.
   restored after each test and fixture resources are closed.
 - Existing discovery, remote/navigation, autoplay, source selection and seamless
   subtitle policy tests remain in the GitHub Actions test filter.
-- GitHub Actions tests/lint/signed builds and TV deployment: pending.
+- GitHub Actions run `39147096797`, code `a975a76`: 130 tests passed,
+  including all 18 maintenance/HTTP-fixture tests; lint and signed debug/stable
+  builds passed, and the permanent stable certificate verification passed.
+- In-place TV installation and launch succeeded. App process remained alive and
+  the crash buffer was empty at the startup check. Installed APK SHA-256 matches
+  the downloaded artifact:
+  `c3e469973511a1df41fb6a6c76ab5ad0e85af0f86afa77fabb55f10754903e5e`.
+- Initial run `39145822398` caught the pre-existing multiline BCP-47 validation
+  bug; the follow-up joins the pattern lines and passes both validation and
+  concurrent-use checks. No failing build was installed.
 
 Fixtures verify expected request/response formats, not current availability of
 third-party hosts or every Android file manager. Real provider/folder interaction
