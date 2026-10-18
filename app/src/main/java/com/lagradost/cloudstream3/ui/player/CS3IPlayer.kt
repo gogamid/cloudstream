@@ -12,6 +12,9 @@ import android.os.Looper
 import android.util.Log
 import android.util.Rational
 import android.widget.FrameLayout
+import android.widget.Toast
+import androidx.media3.common.text.Cue
+import com.lagradost.cloudstream3.CommonActivity.showToast
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.OptIn
@@ -62,7 +65,6 @@ import androidx.media3.exoplayer.source.ConcatenatingMediaSource2
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
-import androidx.media3.exoplayer.source.SingleSampleMediaSource
 import androidx.media3.exoplayer.text.TextOutput
 import androidx.media3.exoplayer.text.TextRenderer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -84,7 +86,6 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mvvm.debugAssert
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.safe
-import com.lagradost.cloudstream3.ui.player.CustomDecoder.Companion.fixSubtitleAlignment
 import com.lagradost.cloudstream3.ui.player.live.LiveHelper
 import com.lagradost.cloudstream3.ui.player.live.PREFERRED_LIVE_OFFSET
 import com.lagradost.cloudstream3.ui.settings.Globals.EMULATOR
@@ -92,7 +93,6 @@ import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
 import com.lagradost.cloudstream3.ui.settings.Globals.TV
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.ui.subtitles.SaveCaptionStyle
-import com.lagradost.cloudstream3.ui.subtitles.SubtitlesFragment.Companion.applyStyle
 import com.lagradost.cloudstream3.utils.AppContextUtils.isUsingMobileData
 import com.lagradost.cloudstream3.utils.AppContextUtils.setDefaultFocus
 import com.lagradost.cloudstream3.utils.CLEARKEY_DRM_UUID
@@ -171,6 +171,33 @@ class CS3IPlayer : IPlayer {
     private var playbackPosition: Long = 0
 
     private val subtitleHelper = PlayerSubtitleHelper()
+    private var subtitleContext: Context? = null
+    private var externalFallbackSubtitle: SubtitleData? = null
+    private val externalSubtitles = ExternalSubtitleController(
+        positionMs = { exoPlayer?.currentPosition },
+        render = { renderSubtitleCues(it) },
+        failed = { _, error -> onExternalSubtitleFailure(error) },
+        loaded = { event(SubtitlesUpdatedEvent()) }
+    )
+
+    private fun renderSubtitleCues(cues: List<Cue>) {
+        subtitleHelper.subtitleView?.setCues(SubtitleCueStyling.apply(cues, CustomDecoder.style))
+    }
+
+    private fun onExternalSubtitleFailure(error: Throwable) {
+        logError(error)
+        val fallback = externalSubtitles.currentTrack ?: externalFallbackSubtitle
+        currentSubtitles = fallback
+        if (fallback?.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO) setPreferredSubtitles(fallback)
+        else if (fallback == null) externalSubtitles.stop()
+        showToast(R.string.external_subtitle_load_failed, Toast.LENGTH_LONG)
+        event(SubtitlesUpdatedEvent())
+    }
+
+    fun refreshExternalSubtitles() {
+        if (currentSubtitles?.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO) seekTime(-1)
+        else externalSubtitles.reparse()
+    }
 
     /** If we want to play the audio only in the background when the app is not open */
     private var isAudioOnlyBackground = false
@@ -254,6 +281,7 @@ class CS3IPlayer : IPlayer {
 
     override fun releaseCallbacks() {
         playbackOperations.advance()
+        externalSubtitles.setRenderingEnabled(false)
         checkpointHandler.removeCallbacks(checkpointRunnable)
         eventHandler = null
         if (isPlayerActive) {
@@ -270,6 +298,7 @@ class CS3IPlayer : IPlayer {
     ) {
         this.requestedListeningPercentages = requestedListeningPercentages
         this.eventHandler = eventHandler
+        externalSubtitles.setRenderingEnabled(true)
         // One main-thread checkpoint loop per attached player, including after reloads.
         checkpointHandler.removeCallbacks(checkpointRunnable)
         checkpointHandler.postDelayed(checkpointRunnable, PlaybackCheckpoint.INTERVAL_MS)
@@ -285,6 +314,7 @@ class CS3IPlayer : IPlayer {
 
     fun initSubtitles(subView: SubtitleView?, subHolder: FrameLayout?, style: SaveCaptionStyle?) {
         subtitleHelper.initSubtitles(subView, subHolder, style)
+        externalSubtitles.redraw(force = true)
     }
 
     override fun getPreview(fraction: Float): Bitmap? {
@@ -311,6 +341,7 @@ class CS3IPlayer : IPlayer {
         preview: Boolean,
     ) {
         Log.i(TAG, "loadPlayer")
+        subtitleContext = context.applicationContext
         val previousIntent = getPlayWhenReady()
         if (sameEpisode) {
             saveData()
@@ -529,57 +560,65 @@ class CS3IPlayer : IPlayer {
     /**
      * @return True if the player should be reloaded
      * */
-    override fun setPreferredSubtitles(subtitle: SubtitleData?): Boolean {
+    override fun setPreferredSubtitles(subtitle: SubtitleData?, userInitiated: Boolean): Boolean {
         Log.i(TAG, "setPreferredSubtitles init $subtitle")
+        if (subtitle != null && subtitle.origin != SubtitleOrigin.EMBEDDED_IN_VIDEO &&
+            !userInitiated && externalSubtitles.hasFailed(subtitle.getId())) return false
+        if (currentSubtitles?.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO && subtitle?.origin != SubtitleOrigin.EMBEDDED_IN_VIDEO) {
+            externalFallbackSubtitle = currentSubtitles
+        }
         currentSubtitles = subtitle
         val trackSelector = exoPlayer?.trackSelector as? DefaultTrackSelector ?: return false
         // Disable subtitles if null
         if (subtitle == null) {
+            externalFallbackSubtitle = null
+            externalSubtitles.stop()
             trackSelector.setParameters(
                 trackSelector.buildUponParameters()
                     .setTrackTypeDisabled(TRACK_TYPE_TEXT, true)
                     .clearOverridesOfType(TRACK_TYPE_TEXT)
             )
+            event(SubtitlesUpdatedEvent())
             return false
         }
         // Embedded tracks belong to the video stream, not external media sources.
         // They can arrive after preparation; never reload the whole player to attach one.
         if (subtitle.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO) {
+            externalSubtitles.stop()
+            externalFallbackSubtitle = null
             exoPlayer?.currentTracks?.groups?.filter { it.type == TRACK_TYPE_TEXT }
                 ?.getTrack(subtitle.getId())?.let { (group, index) ->
                     trackSelector.setParameters(trackSelector.buildUponParameters()
                         .setTrackTypeDisabled(TRACK_TYPE_TEXT, false)
                         .setOverrideForType(TrackSelectionOverride(group, index)))
                 }
+            event(SubtitlesUpdatedEvent())
             return false
         }
-        // Handle subtitle based on status
-        when (subtitleHelper.subtitleStatus(subtitle)) {
-            SubtitleStatus.REQUIRES_RELOAD -> {
-                Log.i(TAG, "setPreferredSubtitles REQUIRES_RELOAD")
-                return true
+        // External subtitles follow the existing video clock independently.
+        // Never merge/re-prepare the video just to change a text track.
+        trackSelector.setParameters(trackSelector.buildUponParameters()
+            .setTrackTypeDisabled(TRACK_TYPE_TEXT, true).clearOverridesOfType(TRACK_TYPE_TEXT))
+        val ctx = subtitleContext ?: return false
+        try {
+            val factory = if (subtitle.origin == SubtitleOrigin.DOWNLOADED_FILE) {
+                ctx.createOfflineSource()
+            } else {
+                val interceptor = currentLink?.let { getApiFromNameNull(it.source)?.getVideoInterceptor(it) }
+                createOnlineSource(subtitle.headers, interceptor)
             }
-
-            SubtitleStatus.NOT_FOUND -> {
-                Log.i(TAG, "setPreferredSubtitles NOT_FOUND")
-                return true
+            if (!externalSubtitles.select(subtitle, factory, retry = userInitiated)) {
+                currentSubtitles = externalSubtitles.currentTrack ?: externalFallbackSubtitle
+                if (currentSubtitles?.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO) {
+                    setPreferredSubtitles(currentSubtitles)
+                }
             }
-
-            SubtitleStatus.IS_ACTIVE -> {
-                Log.i(TAG, "setPreferredSubtitles IS_ACTIVE")
-                exoPlayer?.currentTracks?.groups
-                    ?.filter { it.type == TRACK_TYPE_TEXT }
-                    ?.getTrack(subtitle.getId())
-                    ?.let { (trackGroup, trackIndex) ->
-                        trackSelector.setParameters(
-                            trackSelector.buildUponParameters()
-                                .setTrackTypeDisabled(TRACK_TYPE_TEXT, false)
-                                .setOverrideForType(TrackSelectionOverride(trackGroup, trackIndex))
-                        )
-                    }
-                return false
-            }
+            externalSubtitles.setOffset(currentSubtitleOffset)
+        } catch (error: Exception) {
+            onExternalSubtitleFailure(error)
         }
+        event(SubtitlesUpdatedEvent())
+        return false
     }
 
     private var currentSubtitleOffset: Long = 0
@@ -589,6 +628,8 @@ class CS3IPlayer : IPlayer {
         val changed = currentSubtitleOffset != offset
         currentSubtitleOffset = offset
         CustomDecoder.subtitleOffset = offset
+        externalSubtitles.setOffset(offset)
+        if (currentSubtitles?.origin != SubtitleOrigin.EMBEDDED_IN_VIDEO) return
         if (changed) exoPlayer?.let { exo ->
             if (exo.playbackState == Player.STATE_READY) {
                 // Let ExoPlayer flush/reset the subtitle pipeline on its playback
@@ -607,16 +648,14 @@ class CS3IPlayer : IPlayer {
     }
 
     override fun getSubtitleCues(): List<SubtitleCue> {
-        return currentSubtitleDecoder?.getSubtitleCues() ?: emptyList()
-    }
-
-    override fun getCurrentPreferredSubtitle(): SubtitleData? {
-        return subtitleHelper.getAllSubtitles().firstOrNull { sub ->
-            playerSelectedSubtitleTracks.any { (id, isSelected) ->
-                isSelected && sub.getId() == id
-            }
+        return when (currentSubtitles?.origin) {
+            SubtitleOrigin.URL, SubtitleOrigin.DOWNLOADED_FILE -> externalSubtitles.cues()
+            SubtitleOrigin.EMBEDDED_IN_VIDEO -> currentSubtitleDecoder?.getSubtitleCues() ?: emptyList()
+            else -> emptyList()
         }
     }
+
+    override fun getCurrentPreferredSubtitle(): SubtitleData? = currentSubtitles
 
     override fun getAspectRatio(): Rational? {
         return exoPlayer?.videoFormat?.let { format ->
@@ -626,6 +665,8 @@ class CS3IPlayer : IPlayer {
 
     override fun updateSubtitleStyle(style: SaveCaptionStyle) {
         subtitleHelper.setSubStyle(style)
+        externalSubtitles.reparse()
+        externalSubtitles.redraw(force = true)
     }
 
     override fun saveData() {
@@ -642,6 +683,8 @@ class CS3IPlayer : IPlayer {
     private fun releasePlayer(saveTime: Boolean = true) {
         playbackOperations.advance()
         playbackIntent.detachPlayer()
+        externalSubtitles.stop(clearCache = true)
+        externalFallbackSubtitle = null
         hasActuallyPlayed = false
         Log.i(TAG, "releasePlayer")
         eventLooperIndex += 1
@@ -1121,7 +1164,6 @@ class CS3IPlayer : IPlayer {
     private fun buildExoPlayer(
         context: Context,
         mediaItemSlices: List<MediaItemSlice>,
-        subSources: List<SingleSampleMediaSource>,
         currentWindow: Int,
         playbackPosition: Long,
         playBackSpeed: Float,
@@ -1182,65 +1224,12 @@ class CS3IPlayer : IPlayer {
                         DefaultRenderersFactory(context)
                     }
 
-                    val style = CustomDecoder.style
-                    // Custom TextOutput to apply cue styling and rules to all subtitles
                     val customTextOutput = TextOutput { cue ->
-                        // Do not remove filterNotNull as Java typesystem is fucked
-                        val (bitmapCues, textCues) = cue.cues.toList()
-                            .partition { it.bitmap != null }
-
-                        val styledBitmapCues = bitmapCues.map { bitmapCue ->
-                            bitmapCue
-                                .buildUpon()
-                                .fixSubtitleAlignment()
-                                .applyStyle(style)
-                                .build()
+                        // External text owns its independent output. Late native
+                        // callbacks must not clear/overwrite it after a switch.
+                        if (currentSubtitles?.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO) {
+                            renderSubtitleCues(cue.cues.toList())
                         }
-
-                        // Reuse memory, to avoid many allocations
-                        val set = HashSet<CharSequence>()
-                        val buffer = StringBuilder()
-
-                        // Move cues into one single one
-                        // This is to prevent text overlap in vtt (and potentially other) subtitle files
-                        val styledTextCues = textCues.groupBy {
-                            // Groups cues which share the same positon
-                            it.lineAnchor to it.position.times(1000.0f).toInt()
-                        }.mapNotNull { (_, entries) ->
-                            set.clear()
-                            buffer.clear()
-                            var count = 0
-                            for (x in entries) {
-                                // Only allow non null text, otherwise we might have "a\n\nb"
-                                val text = x.text ?: continue
-
-                                // Prevent duplicate entries, this often happens when the subtitle file
-                                // uses multiple text lines as outlines. Most commonly found in fansubs
-                                // with fancy subtitle styling.
-                                if (!set.add(text)) {
-                                    continue
-                                }
-                                if (++count > 1) buffer.append('\n')
-
-                                // Trim to avoid weird formatting if the last line ends with a newline
-                                buffer.append(text.trim())
-                            }
-
-                            val combinedCueText = buffer.toString()
-
-                            // Use the style of the first entry as the base
-                            entries
-                                .firstOrNull()
-                                ?.buildUpon()
-                                ?.setText(combinedCueText)
-                                ?.fixSubtitleAlignment()
-                                ?.applyStyle(style)
-                                ?.build()
-                        }
-
-                        val combinedCues = styledBitmapCues + styledTextCues
-
-                        subtitleHelper.subtitleView?.setCues(combinedCues)
                     }
 
                     factory.createRenderers(
@@ -1418,8 +1407,8 @@ class CS3IPlayer : IPlayer {
         return exoPlayerBuilder.build().apply {
             setPlayWhenReady(playWhenReady)
             seekTo(currentWindow, playbackPosition)
-            // Merge video, subtitles and external audio tracks
-            val allSources = listOf(videoMediaSource) + subSources + audioSources
+            // Only video and audio belong to this playback pipeline.
+            val allSources = listOf(videoMediaSource) + audioSources
             setMediaSource(
                 MergingMediaSource(*allSources.toTypedArray()),
                 playbackPosition
@@ -1433,7 +1422,6 @@ class CS3IPlayer : IPlayer {
     private fun loadExo(
         context: Context,
         mediaSlices: List<MediaItemSlice>,
-        subSources: List<SingleSampleMediaSource>,
         audioSources: List<MediaSource> = emptyList(),
         onlineSource: HttpDataSource.Factory? = null,
     ) {
@@ -1452,7 +1440,6 @@ class CS3IPlayer : IPlayer {
             exoPlayer = buildExoPlayer(
                 context,
                 mediaSlices,
-                subSources,
                 currentWindow,
                 playbackPosition,
                 playBackSpeed,
@@ -1467,6 +1454,7 @@ class CS3IPlayer : IPlayer {
 
             event(PlayerAttachedEvent(exoPlayer))
             exoPlayer?.prepare()
+            setPreferredSubtitles(currentSubtitles)
 
             // For offline fragmented MP4s, FLAG_MERGE_FRAGMENTED_SIDX builds the SIDX seek map
             // incrementally as data is buffered. The initial seek resolves to the nearest merged
@@ -1493,7 +1481,7 @@ class CS3IPlayer : IPlayer {
             // we want to avoid an empty exoplayer from sending events
             // this is because we need PlayerAttachedEvent to be called to render the UI
             // but don't really want the rest like Player.STATE_ENDED calling next episode
-            if (mediaSlices.isEmpty() && subSources.isEmpty()) {
+            if (mediaSlices.isEmpty()) {
                 return
             }
 
@@ -1543,6 +1531,9 @@ class CS3IPlayer : IPlayer {
                         event(EmbeddedSubtitlesFetchedEvent(tracks = exoPlayerReportedTracks))
                         event(TracksChangedEvent())
                         event(SubtitlesUpdatedEvent())
+                        if (currentSubtitles?.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO) {
+                            setPreferredSubtitles(currentSubtitles)
+                        }
                     }
                 }
 
@@ -1756,57 +1747,11 @@ class CS3IPlayer : IPlayer {
             currentDownloadedFile = data
 
             val mediaItem = getMediaItem(MimeTypes.VIDEO_MP4, data.uri)
-            val offlineSourceFactory = context.createOfflineSource()
-
-            val (subSources, activeSubtitles) = getSubSources(
-                offlineSourceFactory = offlineSourceFactory,
-                subHelper = subtitleHelper,
-                interceptor = null,
-            )
-
-            subtitleHelper.setActiveSubtitles(activeSubtitles.toSet())
-            loadExo(context, listOf(MediaItemSlice(mediaItem, Long.MIN_VALUE)), subSources)
+            loadExo(context, listOf(MediaItemSlice(mediaItem, Long.MIN_VALUE)))
         } catch (t: Throwable) {
             Log.e(TAG, "loadOfflinePlayer error", t)
             event(ErrorEvent(t))
         }
-    }
-
-    private fun getSubSources(
-        offlineSourceFactory: DataSource.Factory?,
-        subHelper: PlayerSubtitleHelper,
-        interceptor: Interceptor?,
-    ): Pair<List<SingleSampleMediaSource>, List<SubtitleData>> {
-        val activeSubtitles = ArrayList<SubtitleData>()
-        val subSources = PlaybackResourcePolicy.externalSubtitles(
-            subHelper.getAllSubtitles(), currentSubtitles, isLayout(TV)
-        ).mapNotNull { sub ->
-            val subConfig = MediaItem.SubtitleConfiguration.Builder(sub.getFixedUrl().toUri())
-                .setMimeType(sub.mimeType)
-                .setLanguage("_${sub.name}")
-                .setId(sub.getId())
-                .setSelectionFlags(0)
-                .build()
-            when (sub.origin) {
-                SubtitleOrigin.DOWNLOADED_FILE, SubtitleOrigin.EMBEDDED_IN_VIDEO -> {
-                    if (offlineSourceFactory != null) {
-                        activeSubtitles.add(sub)
-                        SingleSampleMediaSource.Factory(offlineSourceFactory)
-                            .createMediaSource(subConfig, TIME_UNSET)
-                    } else {
-                        null
-                    }
-                }
-
-                SubtitleOrigin.URL -> {
-                    val dataSourceFactory = createOnlineSource(sub.headers, interceptor)
-                    activeSubtitles.add(sub)
-                    SingleSampleMediaSource.Factory(dataSourceFactory)
-                        .createMediaSource(subConfig, TIME_UNSET)
-                }
-            }
-        }
-        return Pair(subSources, activeSubtitles)
     }
 
     /**
@@ -1906,7 +1851,7 @@ class CS3IPlayer : IPlayer {
                         // this causes a *bug* that restarts all torrents from 0
                         // but I would call this a feature
                         releasePlayer()
-                        loadExo(context, listOf(), listOf())
+                        loadExo(context, emptyList())
                     }
                     event(
                         StatusEvent(
@@ -2013,26 +1958,15 @@ class CS3IPlayer : IPlayer {
                     interceptor = interceptor
                 )
 
-            val offlineSourceFactory = context.createOfflineSource()
-
-            val (subSources, activeSubtitles) = getSubSources(
-                offlineSourceFactory = offlineSourceFactory,
-                subHelper = subtitleHelper,
-                interceptor = interceptor, // Backwards compatibility, needs a new api to work properly
-            )
-
             // Create audio sources from ExtractorLink's audioTracks
             val audioSources = getAudioSources(
                 audioTracks = link.audioTracks,
                 interceptor = interceptor, // Backwards compatibility, needs a new api to work properly
             )
 
-            subtitleHelper.setActiveSubtitles(activeSubtitles.toSet())
-
             loadExo(
                 context = context,
                 mediaSlices = mediaItems,
-                subSources = subSources,
                 audioSources = audioSources,
                 onlineSource = onlineSourceFactory
             )

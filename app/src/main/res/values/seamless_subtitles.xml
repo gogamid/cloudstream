@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="external_subtitle_load_failed">Could not load this subtitle. Video playback was not interrupted.</string>
+</resources>

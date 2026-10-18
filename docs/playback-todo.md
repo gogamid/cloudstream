@@ -17,12 +17,15 @@ into the autoplay regression fix.
 Reported behavior: the first selected source prepares but remains paused until
 Play is pressed again, whether source collection was skipped or completed.
 
-## 2. Seamless external-subtitle switching — queued
+## 2. Seamless external-subtitle switching — in progress
 
-- [ ] Replace the full-video reload path for English/Russian shortcuts and
-      cycling same-language external subtitle sources.
-- [ ] Keep video playback, decoder, position, and play/pause state uninterrupted.
-- [ ] Retain full subtitle choice list without preparing every track at once.
+- [x] Implement a video-clock-driven external-subtitle controller, independent
+      of the video media sources/decoder. Language shortcuts and cycling select it.
+- [x] Remove video reloads for external subtitle selection/file loading; the
+      source/subtitle chooser no longer pauses playback just to change text.
+- [x] Keep all descriptors available, with a two-track/4 MiB raw-byte LRU cache.
+- [x] Cancel stale reads/results on rapid changes and retain the previous working
+      subtitle on load failure without routing it through video-source fallback.
 - [ ] Preserve subtitle timing, styling, subtitles-off, series preferences,
       embedded subtitle selection, and missing/error handling.
 - [ ] Regression tests, GitHub Actions build, then TV verification.

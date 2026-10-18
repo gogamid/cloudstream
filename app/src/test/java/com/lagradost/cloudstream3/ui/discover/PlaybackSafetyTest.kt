@@ -3,17 +3,12 @@ package com.lagradost.cloudstream3.ui.discover
 import com.lagradost.cloudstream3.ui.player.PlaybackOperationGuard
 import com.lagradost.cloudstream3.ui.player.PlaybackResourcePolicy
 import com.lagradost.cloudstream3.ui.player.SubtitleCueStore
-import com.lagradost.cloudstream3.ui.player.SubtitleData
-import com.lagradost.cloudstream3.ui.player.SubtitleOrigin
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 class PlaybackSafetyTest {
-    private fun sub(id: Int, origin: SubtitleOrigin = SubtitleOrigin.URL) =
-        SubtitleData("English", "$id", "track-$id", origin, "application/x-subrip", emptyMap(), "en")
-
     @Test fun `switching source invalidates queued work even when URL is unchanged`() {
         val guard = PlaybackOperationGuard()
         val first = guard.token()
@@ -41,24 +36,6 @@ class PlaybackSafetyTest {
         assertEquals(Int.MAX_VALUE, PlaybackResourcePolicy.targetBufferBytes(false, Long.MAX_VALUE, -1))
         assertEquals(0, PlaybackResourcePolicy.backBufferMs(true))
         assertEquals(30000, PlaybackResourcePolicy.backBufferMs(false))
-    }
-
-    @Test fun `TV attaches only selected subtitle while retaining the whole choice list`() {
-        val all = (1..100).map { sub(it) }.toSet()
-        val attached = PlaybackResourcePolicy.externalSubtitles(all, sub(70), true)
-        assertEquals(listOf(sub(70)), attached)
-        assertEquals(100, all.size)
-        assertTrue(PlaybackResourcePolicy.externalSubtitles(all, null, true).isEmpty())
-        assertEquals(100, PlaybackResourcePolicy.externalSubtitles(all, sub(70), false).size)
-    }
-
-    @Test fun `embedded subtitles never create external network media sources`() {
-        val embedded = sub(1, SubtitleOrigin.EMBEDDED_IN_VIDEO)
-        val file = sub(2, SubtitleOrigin.DOWNLOADED_FILE)
-        val all = setOf(embedded, file, sub(3))
-        assertTrue(PlaybackResourcePolicy.externalSubtitles(all, embedded, true).isEmpty())
-        assertEquals(listOf(file), PlaybackResourcePolicy.externalSubtitles(all, file, true))
-        assertFalse(PlaybackResourcePolicy.externalSubtitles(all, embedded, false).contains(embedded))
     }
 
     @Test fun `episode cache retains current plus three recent episodes`() {

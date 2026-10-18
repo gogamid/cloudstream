@@ -12,11 +12,6 @@ internal object PlaybackResourcePolicy {
 
     fun backBufferMs(tv: Boolean) = if (tv) 0 else 30_000
 
-    /** Keep descriptors for every choice, but attach only the selected external track on TV. */
-    fun externalSubtitles(all: Set<SubtitleData>, selected: SubtitleData?, tv: Boolean): List<SubtitleData> =
-        all.filter { it.origin != SubtitleOrigin.EMBEDDED_IN_VIDEO &&
-            (!tv || (selected != null && it.getId() == selected.getId())) }
-
     fun <K> episodeCacheEvictions(timestamps: Map<K, Long>, keep: K, now: Long): Set<K> {
         val others = timestamps.entries.filter { it.key != keep }.sortedByDescending { it.value }
         return others.filterIndexed { index, entry ->

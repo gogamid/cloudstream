@@ -247,7 +247,7 @@ class GeneratorPlayer : FullScreenPlayer() {
 
         currentSelectedSubtitles = subtitle
         //Log.i(TAG, "setSubtitles = $subtitle")
-        return player.setPreferredSubtitles(subtitle)
+        return player.setPreferredSubtitles(subtitle, userInitiated)
     }
 
     override fun embeddedSubtitlesFetched(subtitles: List<SubtitleData>) {
@@ -276,7 +276,8 @@ class GeneratorPlayer : FullScreenPlayer() {
     override fun selectSubtitleLanguage(language: String) {
         val ctx = context ?: return
         val subtitle = SubtitleLanguageSelection.next(
-            sortSubs(viewModel.state.subtitles), language, player.getCurrentPreferredSubtitle()
+            sortSubs(viewModel.state.subtitles), language,
+            currentSelectedSubtitles ?: player.getCurrentPreferredSubtitle()
         )
         if (subtitle == null) {
             val label = ctx.getString(if (language == "ru")
@@ -1117,10 +1118,11 @@ class GeneratorPlayer : FullScreenPlayer() {
         // this is used instead of observe(viewModel._currentSubs), because observe is too slow
         player.setActiveSubtitles(viewModel.state.subtitles)
 
-        // Select before rebuilding, so TV's on-demand subtitle source is attached.
-        setSubtitles(selectedSubtitle, true)
-        player.saveData()
-        player.reloadPlayer(ctx)
+        // External text is selected independently; never rebuild the video here.
+        if (setSubtitles(selectedSubtitle, true)) {
+            player.saveData()
+            player.reloadPlayer(ctx)
+        }
 
         selectSourceDialog?.dismissSafe()
         selectSourceDialog = null
@@ -1249,8 +1251,7 @@ class GeneratorPlayer : FullScreenPlayer() {
             currentSelectedSubtitles = player.getCurrentPreferredSubtitle()
             //println("CURRENT SELECTED :$currentSelectedSubtitles of $currentSubs")
             context?.let { ctx ->
-                val isPlaying = player.getPlayWhenReady()
-                player.handleEvent(CSPlayerEvent.Pause, PlayerEventSource.UI)
+                // This chooser need not pause video just to change text tracks.
                 val currentSubtitles = sortSubs(viewModel.state.subtitles)
 
                 val sourceDialog = Dialog(ctx, R.style.DialogFullscreenPlayer)
@@ -1287,9 +1288,6 @@ class GeneratorPlayer : FullScreenPlayer() {
                 }
 
                 fun dismiss() {
-                    if (isPlaying && isCurrentDialog()) {
-                        player.handleEvent(CSPlayerEvent.Play)
-                    }
                     activity?.hideSystemUI()
                 }
 
@@ -1613,7 +1611,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                         }
                         updateForcedEncoding(ctx)
                         dismiss()
-                        player.seekTime(-1) // to update subtitles, a dirty trick
+                        (player as? CS3IPlayer)?.refreshExternalSubtitles()
                     }
                 }
 
@@ -1645,7 +1643,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                             if (sourceIndex != startSource) rememberVideo(it.link)
                             loadLink(it.link, true, manualSelection =
                                 if (sourceSelectionTouched || sourceIndex != startSource) true else null,
-                                autoPlay = isPlaying)
+                                autoPlay = player.getPlayWhenReady())
                         }
                     }
                     sourceDialog.dismissSafe(activity)

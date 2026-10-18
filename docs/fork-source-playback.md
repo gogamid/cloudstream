@@ -101,9 +101,9 @@ pressure for those exits, not the cause of every reported interruption.
 - TV uses a 32 MiB default media sample-buffer target and no 30-second rewind
   back-buffer. Explicit RAM-buffer preferences remain honored; this is not a cap
   on total process memory and does not restrict video resolution.
-- TV attaches only the selected external subtitle to the media pipeline; all
-  subtitle descriptors remain selectable. Switching to an unattached external
-  track uses the existing reload path. Embedded tracks are selected directly.
+- External subtitles now have an independent controller (see below). They are
+  not attached to the video media pipeline. All descriptors remain selectable;
+  embedded tracks are selected directly in the native player.
 - Subtitle-arrival bursts are coalesced, and automatic subtitle reloads wait for
   a ready player outside dialogs. Automatic reloads preserve play/pause intent.
 - Source errors and fallback wait while dialogs/background lifecycle transitions
@@ -124,7 +124,50 @@ pressure for those exits, not the cause of every reported interruption.
   cover the built-in resolver, not arbitrary WebViews created inside plugins.
 
 `PlaybackSafetyTest` covers operation invalidation, concurrent generation updates,
-TV/phone buffer policy, selected/embedded subtitle attachment, bounded episode
-caches, and concurrent decoder cue snapshots/resets. Real TV testing is required
+TV/phone buffer policy, bounded episode caches, and concurrent decoder cue
+snapshots/resets. Subtitle attachment-policy tests were superseded by the new
+independent-controller state/cache/clock tests. Real TV testing is required
 for media codec turnover, WebView renderer death, rapid dialog/source changes,
 subtitle cycling/file loading, and memory behavior with actual providers.
+
+## Independent external subtitles
+
+External URL/file subtitles are read asynchronously with the existing Media3
+DataSource factories (provider headers/interceptors or SAF/file access), decoded
+with the existing custom parsers/encoding rules, and rendered using the shared
+subtitle styling. They are never merged into the video media source. This path
+creates no additional ExoPlayer, decoder clock, audio session, or video reload.
+
+The selected subtitle queries the current video's position every 100ms, using
+Media3's legacy Subtitle event index. Cues are restyled/redrawn only when the
+subtitle event changes, on seek/offset change, or when explicitly refreshed.
+Pauses, speed changes, buffering and seeks follow the existing video clock rather
+than a second independently advancing clock. External timing adjustments alter
+the lookup offset; they do not seek the video or download the file again.
+
+Selection publishes the requested ID immediately so rapid language-button
+cycling progresses even during a pending read. Generation tokens prevent older
+reads, parses and failures from winning a newer selection or subtitles-off.
+Existing text continues while another external track loads. Failed external
+loads preserve a working selection (or restore embedded/off), toast an error,
+and do not call video source error/fallback. Failed automatic requests are not
+retried on every late provider callback; an explicit user selection can retry.
+
+Only two parsed tracks are cached, with a combined original-file-byte budget of
+4 MiB. A single file is limited to 4 MiB and 30,000 parsed cue groups. Decoded cue
+objects have additional memory overhead; this byte budget is not a process RAM
+cap. At most two blocking loader workers overlap; canceled reads are closed off
+main and streams also close in their normal finally/use path. Per-video release
+clears the cache and invalidates pending results. Native embedded tracks retain
+the existing ExoPlayer selection path, without synthetic external sources.
+
+Opening the source/subtitle chooser no longer pauses video. Applying only a
+subtitle does not call loadLink/reloadPlayer. An actual video-source change still
+reloads video and honors the current playback intent. Encoding changes reparse
+cached subtitle bytes; timing, styling, subtitles-off, source/language preferences
+and the existing language cycling order remain supported.
+
+`SeamlessSubtitlesTest` covers rapid selection, stale completion/error suppression,
+off/reset, rollback, LRU/byte bounds, bounded/canceled reads, Cyrillic input byte
+preservation and offset arithmetic. These are pure policy tests; parser formats,
+visual timing and no-rebuffer behavior still require actual TV playback checks.

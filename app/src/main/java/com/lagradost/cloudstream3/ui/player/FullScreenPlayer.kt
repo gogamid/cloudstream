@@ -347,6 +347,11 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     }
 
     override fun subtitlesChanged() {
+        val selected = player.getCurrentPreferredSubtitle()
+        if (selected != null && selected.origin != SubtitleOrigin.EMBEDDED_IN_VIDEO) {
+            playerBinding?.playerSubtitleOffsetBtt?.isGone = false
+            return
+        }
         val tracks = player.getVideoTracks()
         val isBuiltinSubtitles = tracks.currentTextTracks.all { track ->
             track.sampleMimeType == MimeTypes.APPLICATION_MEDIA3_CUES
