@@ -299,8 +299,6 @@ object SettingsFragmentScreen : Screen {
             readOnly = input.readOnly,
             keyboardOptions = input.options(KeyboardOptions.Default.copy(
                 imeAction = ImeAction.Search,
-                // This option is bugged on compose, making it unable to open at all
-                // showKeyboardOnFocus = false
             )),
             modifier = Modifier
                 .fillMaxWidth()

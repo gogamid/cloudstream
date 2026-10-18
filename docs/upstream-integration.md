@@ -66,7 +66,9 @@ certificate verification remain required. Extractor fixtures intercept HTTP;
 HLS fixtures use localhost, not live hosts.
 
 A separate Android 12 emulator gate runs six instrumentation tests against the
-real Compose editor/IME and dialog-window implementations. It checks TV focus
+real Compose editor/IME and dialog-window implementations, including the actual
+state-based settings search field and shared value-based account/editor field.
+It checks TV focus
 without automatic keyboard opening, explicit OK, vertical escape/disposal,
 unchanged phone keyboard activation, Apply key-up/repeat/cancel handling before
 child focus, disabled Apply, exclusion of generic Login buttons, and retrying

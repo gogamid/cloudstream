@@ -55,13 +55,20 @@ class ForkComposeInputTest {
     private fun press(key: Int) = instrumentation.sendKeyDownUpSync(key)
 
     @Test fun tvFocusDoesNotOpenImeAndVerticalArrowsEscapeEditor() {
-        launch("tv").use { scenario ->
+        checkTvEditor("tv")
+        checkTvEditor("settings-search")
+    }
+
+    private fun checkTvEditor(mode: String) {
+        launch(mode).use { scenario ->
             await("TV editor did not receive focus") { read(scenario) { it.ready.get() && it.typing } }
             SystemClock.sleep(600)
             assertFalse("D-pad focus opened the IME", read(scenario) { it.keyboardVisible })
             press(KeyEvent.KEYCODE_DPAD_DOWN)
-            await("Down did not leave the TV editor") { read(scenario) { it.leaveFocused.get() && !it.typing } }
-            press(KeyEvent.KEYCODE_DPAD_UP)
+            await("Down did not leave the TV editor") { read(scenario) { !it.typing && (mode == "settings-search" || it.leaveFocused.get()) } }
+            // The actual settings search has additional icon-button focus targets.
+            if (mode == "settings-search") scenario.onActivity { it.focusEditor() }
+            else press(KeyEvent.KEYCODE_DPAD_UP)
             await("Up did not return focus to the editor") { read(scenario) { it.typing } }
             press(KeyEvent.KEYCODE_DPAD_CENTER)
             await("OK did not explicitly open the IME") { read(scenario) { it.keyboardVisible } }
@@ -72,7 +79,7 @@ class ForkComposeInputTest {
             press(KeyEvent.KEYCODE_BACK)
             await("Back did not close the reopened IME") { !read(scenario) { it.keyboardVisible } }
             press(KeyEvent.KEYCODE_DPAD_UP)
-            await("Up did not escape the first editor") { read(scenario) { it.leaveFocused.get() && !it.typing } }
+            await("Up did not escape the first editor") { read(scenario) { !it.typing && (mode == "settings-search" || it.leaveFocused.get()) } }
         }
         instrumentation.waitForIdleSync()
         val typing = AtomicBoolean(true)

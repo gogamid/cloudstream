@@ -37,6 +37,8 @@ class ForkComposeInputTestActivity : ComponentActivity() {
     val unrelated = AtomicInteger(0)
     val leaveFocused = AtomicBoolean(false)
     var dialogView: View? = null
+    private var editorFocus: FocusRequester? = null
+    fun focusEditor() { editorFocus?.requestFocus() }
     val typing: Boolean get() = ComposeTextFocus.isTyping
     val keyboardVisible: Boolean get() = ViewCompat.getRootWindowInsets(window.decorView)
         ?.isVisible(WindowInsetsCompat.Type.ime()) == true
@@ -52,7 +54,7 @@ class ForkComposeInputTestActivity : ComponentActivity() {
                             "apply" -> ApplyDialog()
                             "retry" -> RetryPreference()
                             "disabled", "unrelated" -> OtherDialog(mode)
-                            else -> Editor()
+                            else -> Editor(mode == "settings-search")
                         }
                     }
                 }
@@ -61,16 +63,25 @@ class ForkComposeInputTestActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Editor() {
+    private fun Editor(settingsSearch: Boolean) {
         var text by remember { mutableStateOf("") }
         val requester = remember { FocusRequester() }
+        SideEffect { editorFocus = requester }
         Column {
-            BlackTextField(
-                modifier = Modifier.fillMaxWidth().focusRequester(requester),
-                value = text,
-                onValueChange = { text = it },
-                placeHolder = "Editor",
-            )
+            if (settingsSearch) {
+                androidx.compose.foundation.layout.Box(Modifier.focusRequester(requester)) {
+                    com.lagradost.cloudstream3.ui.settings.SettingsFragmentScreen.SettingsSearch(
+                        androidx.compose.foundation.text.input.rememberTextFieldState()
+                    )
+                }
+            } else {
+                BlackTextField(
+                    modifier = Modifier.fillMaxWidth().focusRequester(requester),
+                    value = text,
+                    onValueChange = { text = it },
+                    placeHolder = "Editor",
+                )
+            }
             BlackButton(text = "Leave", modifier = Modifier.onFocusChanged { leaveFocused.set(it.isFocused) }) {}
         }
         LaunchedEffect(Unit) {
