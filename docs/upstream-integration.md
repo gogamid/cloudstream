@@ -3,7 +3,8 @@
 Branch: `feature/upstream-integration`, based on upstream `master` `4c4c679`.
 Merged fork maintenance `c2c4841`, then refreshed upstream to `eb962b4`
 (the newer +10 seek-button fix); no changes are pushed to upstream.
-The TV remains on the validated maintenance build while this branch is validated.
+The TV remains on the validated maintenance build while real-device validation
+of this integration candidate is pending; automated validation has passed.
 
 ## Integration decisions
 
@@ -78,12 +79,26 @@ or alter its data. Do not deploy a failing or unfinished integration build.
 
 ## Validation record and remaining device checks
 
-Run `39154735954` passed **695 app/library tests**, zero failures/errors/skips,
-shared JVM compilation, lint, both APK builds and permanent signing verification.
-Its emulator tests passed TV focus/IME/reopen/vertical escape, phone IME, disabled
-Apply and generic Login exclusion. The fifth check exposed a real repeated-Apply
-race during asynchronous dismissal; the immediate latch fix and editor retry
-check are included in the next run, not excused by weakening that assertion.
+Accepted code: `e2b6d9aa4f3e12d286604619aefffc7f14228956`.
+[Run `39159294452`](https://github.com/gogamid/cloudstream/actions/runs/39159294452)
+passed the complete gate:
+
+- **152 app tests + 543 library tests = 695**, zero failures/errors/skips.
+- **Six Android 12 emulator tests**, all passed, including the actual state-based
+  settings search and shared value-based editors, keyboard reopening, Apply
+  release/repeat/cancel/dismissal handling, disabled/generic-button exclusion,
+  and the real preference editor's rejected-validation retry.
+- Shared JVM compilation, Android compilation, lint, both APK builds, and
+  verification of the permanent stable signing certificate.
+
+The emulator gate first exposed a real repeated-Apply race during asynchronous
+Compose dismissal. The immediate latch fix is validated by retaining that same
+strict assertion. The retry test uses Compose's UI driver; the separate physical
+focus/IME tests retain the actual Android frame clock.
+
+Saved reports and APK: `~/downloads/cs-integration-39159294452/`.
+Stable APK SHA256:
+`b0e1320f54ddb285c42f1c167c8578564efa7f481c3f68a5c77150675f17a385`.
 
 Require a completely green [latest branch workflow](https://github.com/gogamid/cloudstream/actions/workflows/fork-apk.yml?query=branch%3Afeature%2Fupstream-integration)
 for the current code before deployment. No result on an earlier commit validates
