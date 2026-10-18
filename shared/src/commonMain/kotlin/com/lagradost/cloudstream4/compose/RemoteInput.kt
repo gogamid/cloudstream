@@ -33,6 +33,9 @@ object RemoteInputBridge {
 @Composable
 expect fun DialogApplyEffect(enabled: Boolean = true, apply: () -> Unit)
 
+@Composable
+expect fun isTvRemoteInput(): Boolean
+
 class TvTextInput internal constructor(
     val modifier: Modifier,
     val readOnly: Boolean,
@@ -49,7 +52,7 @@ class TvTextInput internal constructor(
  */
 @Composable
 fun rememberTvTextInput(): TvTextInput {
-    val tv = isLayout(TV or EMULATOR)
+    val tv = isTvRemoteInput()
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     var editing by remember { mutableStateOf(false) }

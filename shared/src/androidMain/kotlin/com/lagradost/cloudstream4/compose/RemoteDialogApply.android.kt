@@ -9,6 +9,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 
 @Composable
+actual fun isTvRemoteInput(): Boolean = isLayout(TV or EMULATOR)
+
+@Composable
 actual fun DialogApplyEffect(enabled: Boolean, apply: () -> Unit) {
     val view = LocalView.current
     val window = (view.parent as? DialogWindowProvider)?.window

@@ -258,8 +258,7 @@ fun SearchToolbar(
             if (searchQuery == null) return@AppBar titleContent()
 
             val input = com.lagradost.cloudstream4.compose.rememberTvTextInput()
-            val tvInput = com.lagradost.cloudstream4.compose.isLayout(
-                com.lagradost.cloudstream4.compose.TV or com.lagradost.cloudstream4.compose.EMULATOR)
+            val tvInput = com.lagradost.cloudstream4.compose.isTvRemoteInput()
             val keyboardController = LocalSoftwareKeyboardController.current
             val focusManager = LocalFocusManager.current
 
