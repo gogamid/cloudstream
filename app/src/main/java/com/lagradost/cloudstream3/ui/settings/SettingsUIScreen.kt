@@ -42,6 +42,14 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentMap
 
 object SettingsUIScreen : SearchableSettings {
+    private fun showDefaultFilters(actor: Boolean) {
+        val host = (activity as? MainActivity)?.supportFragmentManager
+            ?.findFragmentById(R.id.nav_host_fragment)
+        host?.childFragmentManager?.primaryNavigationFragment?.let {
+            FilterDefaultsDialog.show(it, actor)
+        }
+    }
+
     @Composable
     override fun getTitleRes(): String = stringResource(R.string.category_ui)
 
@@ -80,6 +88,23 @@ object SettingsUIScreen : SearchableSettings {
         val settings = rememberAppSettings()
 
         return persistentListOf(
+            Preference.PreferenceGroup(
+                title = stringResource(R.string.filter_defaults_category),
+                preferenceItems = persistentListOf(
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(R.string.discover_filter_defaults),
+                        subtitle = stringResource(R.string.filter_defaults_summary),
+                        icon = painterResource(R.drawable.filter_alt_24px),
+                        onClick = { showDefaultFilters(false) }
+                    ),
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(R.string.actor_filter_defaults),
+                        subtitle = stringResource(R.string.filter_defaults_summary),
+                        icon = painterResource(R.drawable.filter_alt_24px),
+                        onClick = { showDefaultFilters(true) }
+                    ),
+                )
+            ),
             Preference.PreferenceGroup(
                 title = stringResource(R.string.pref_category_looks),
                 preferenceItems = persistentListOf(

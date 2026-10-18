@@ -129,7 +129,7 @@ class GrdLayoutManager(val context: Context, spanCount: Int) :
             newSpanIndex < 0 || newSpanIndex >= spanCount
         } else {
             val newPos = from + offset
-            newPos in spanCount..-1
+            newPos < 0
         }
     }
 }

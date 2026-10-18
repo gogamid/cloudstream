@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dialog_apply_button">Dialog Apply button</string>
+    <string name="dialog_apply_current">Current: %1$s</string>
+    <string name="dialog_apply_assign">Choose a remote button</string>
+    <string name="dialog_apply_summary">%1$s — applies changes in supported dialogs; normal behavior elsewhere</string>
+    <string name="dialog_apply_capture">Press and release the button you want to use for Apply, such as Green or Play/Pause. Navigation, OK, Back, volume, and system keys are reserved. Back cancels. Login, Add, and Play confirmations are excluded.</string>
+</resources>

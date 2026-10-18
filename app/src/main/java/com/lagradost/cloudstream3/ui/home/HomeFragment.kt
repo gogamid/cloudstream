@@ -400,6 +400,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
 
             builder.setContentView(binding.root)
             builder.show()
+            com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(builder)
             builder.let { dialog ->
                 val isMultiLang = getApiProviderLangSettings().let { set ->
                     set.size > 1 || set.contains(AllLanguagesName)
@@ -826,6 +827,8 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             binding.apply {
                 homeApiFab.text = displayApiName
                 homeChangeApi.text = displayApiName
+                homeApiFab.isVisible = false
+                homeChangeApi.isVisible = false
                 homePreviewReloadProvider.isGone = (apiName == noneApi.name)
                 homePreviewSearchButton.isGone = (apiName == noneApi.name)
             }

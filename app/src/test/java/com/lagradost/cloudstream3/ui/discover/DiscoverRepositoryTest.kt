@@ -1,0 +1,293 @@
+package com.lagradost.cloudstream3.ui.discover
+
+import com.lagradost.cloudstream3.MovieSearchResponse
+import com.lagradost.cloudstream3.TvSeriesSearchResponse
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.IOException
+
+class DiscoverRepositoryTest {
+    @Test
+    fun `movie discovery combines rating genre year sort and requested page on the server`() = runBlocking {
+        val repository = DiscoverRepository { path, params ->
+            assertEquals("/discover/movie", path)
+            assertEquals("en", params["with_original_language"])
+            assertEquals("7", params["vote_average.gte"])
+            assertEquals("1", params["vote_count.gte"])
+            assertEquals("27", params["with_genres"])
+            assertEquals("2024-01-01", params["primary_release_date.gte"])
+            assertEquals("2024-12-31", params["primary_release_date.lte"])
+            assertEquals("popularity.desc", params["sort_by"])
+            assertEquals("2", params["page"])
+            assertEquals("false", params["include_adult"])
+            assertFalse(params.containsKey("primary_release_year"))
+            assertFalse(params.containsKey("first_air_date.gte"))
+            """{"total_pages":3,"results":[
+                {"id":1,"title":"Exact threshold","vote_average":7.0,"vote_count":120},
+                {"id":2,"title":"Below threshold","vote_average":6.999},
+                {"id":3,"title":"Unrated"},
+                {"id":4,"title":"No votes","vote_average":8.0,"vote_count":0}
+            ]}"""
+        }
+        val page = repository.discover(
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.SEVEN, setOf(27), 2024, 2024,
+            DiscoverSort.POPULAR, 2,
+        )
+        assertEquals(listOf("Exact threshold"), page.results.map { it.name })
+        assertTrue(page.hasMore)
+    }
+
+    @Test
+    fun `year range 2005 to 2010 uses gte and lte`() = runBlocking {
+        val repository = DiscoverRepository { _, params ->
+            assertEquals("2005-01-01", params["primary_release_date.gte"])
+            assertEquals("2010-12-31", params["primary_release_date.lte"])
+            """{"total_pages":1,"results":[]}"""
+        }
+        repository.discover(
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ALL, TmdbRatingFilter.ALL, emptySet(), 2005, 2010,
+            DiscoverSort.POPULAR, 1,
+        )
+        Unit
+    }
+
+    @Test
+    fun `multiple genres use OR and default filters omit restrictions`() = runBlocking {
+        val repository = DiscoverRepository { _, params ->
+            assertEquals("27|35|80", params["with_genres"])
+            assertFalse(params.containsKey("vote_average.gte"))
+            assertFalse(params.containsKey("vote_count.gte"))
+            assertFalse(params.containsKey("primary_release_date.gte"))
+            assertFalse(params.containsKey("primary_release_date.lte"))
+            assertEquals("en", params["with_original_language"])
+            assertEquals("popularity.desc", params["sort_by"])
+            """{"total_pages":1,"results":[{"id":1,"title":"Unrated"}]}"""
+        }
+        val page = repository.discover(
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, setOf(80, 27, 35), null, null,
+            DiscoverSort.POPULAR, 1,
+        )
+        assertEquals("Unrated", page.results.single().name)
+        assertNull(page.results.single().score)
+        assertFalse(page.hasMore)
+    }
+
+    @Test
+    fun `language All omits with_original_language`() = runBlocking {
+        val repository = DiscoverRepository { _, params ->
+            assertFalse(params.containsKey("with_original_language"))
+            """{"total_pages":1,"results":[]}"""
+        }
+        repository.discover(
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ALL, TmdbRatingFilter.ALL, emptySet(), null, null,
+            DiscoverSort.POPULAR, 1,
+        )
+        Unit
+    }
+
+    @Test
+    fun `TV discovery uses TV endpoints year range genres dates and distinct card IDs`() = runBlocking {
+        val paths = mutableListOf<String>()
+        var discoverParams: Map<String, String> = emptyMap()
+        val repository = DiscoverRepository { path, params ->
+            paths += path
+            when (path) {
+                "/genre/tv/list" -> """{"genres":[{"id":35,"name":"Comedy"},{"id":9648,"name":"Mystery"}]}"""
+                "/discover/tv" -> {
+                    discoverParams = params
+                    """{"total_pages":1,"results":[
+                        {"id":12,"name":"Series","first_air_date":"2022-01-01","poster_path":"/tv.jpg"}
+                    ]}"""
+                }
+                else -> error(path)
+            }
+        }
+        assertEquals(listOf(35, 9648), repository.genres(DiscoverMediaType.SERIES).map { it.id })
+        val card = repository.discover(
+            DiscoverMediaType.SERIES, DiscoverLanguage.RUSSIAN, TmdbRatingFilter.ALL, setOf(35), 2022, 2022,
+            DiscoverSort.NEWEST, 1,
+        ).results.single() as TvSeriesSearchResponse
+        assertEquals(listOf("/genre/tv/list", "/discover/tv"), paths)
+        assertEquals("2022-01-01", discoverParams["first_air_date.gte"])
+        assertEquals("2022-12-31", discoverParams["first_air_date.lte"])
+        assertFalse(discoverParams.containsKey("primary_release_date.gte"))
+        assertFalse(discoverParams.containsKey("primary_release_year"))
+        assertEquals("first_air_date.desc", discoverParams["sort_by"])
+        assertEquals("35", discoverParams["with_genres"])
+        assertEquals("ru", discoverParams["with_original_language"])
+        assertEquals(2022, card.year)
+        assertEquals("https://www.themoviedb.org/tv/12", card.url)
+        assertEquals("https://image.tmdb.org/t/p/w500/tv.jpg", card.posterUrl)
+        assertNotEquals(TmdbTitle(id = 12, title = "Movie").toSearchResponse().id, card.id)
+    }
+
+    @Test
+    fun `sort mapping covers both catalogues`() {
+        assertEquals("popularity.desc", DiscoverSort.POPULAR.sortBy(DiscoverMediaType.MOVIES))
+        assertEquals("popularity.desc", DiscoverSort.POPULAR.sortBy(DiscoverMediaType.SERIES))
+        assertEquals("vote_average.desc", DiscoverSort.TOP_RATED.sortBy(DiscoverMediaType.SERIES))
+        assertEquals(
+            "primary_release_date.desc",
+            DiscoverSort.NEWEST.sortBy(DiscoverMediaType.MOVIES),
+        )
+        assertEquals("first_air_date.desc", DiscoverSort.NEWEST.sortBy(DiscoverMediaType.SERIES))
+        assertEquals("first_air_date.asc", DiscoverSort.OLDEST.sortBy(DiscoverMediaType.SERIES))
+        assertEquals("original_title.asc", DiscoverSort.TITLE_AZ.sortBy(DiscoverMediaType.MOVIES))
+    }
+
+    @Test
+    fun `year range label formats All single and range`() {
+        assertEquals("All", YearRange(null, null).label())
+        assertEquals("2024", YearRange(2024, 2024).label())
+        assertEquals("2005 — 2010", YearRange(2005, 2010).label())
+        assertEquals("2005+", YearRange(2005, null).label())
+        assertEquals("≤2010", YearRange(null, 2010).label())
+    }
+
+    @Test
+    fun `top rated sorting requires a meaningful vote floor`() = runBlocking {
+        val repository = DiscoverRepository { _, params ->
+            assertEquals("vote_average.desc", params["sort_by"])
+            assertEquals("25", params["vote_count.gte"])
+            """{"total_pages":1,"results":[]}"""
+        }
+        repository.discover(
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
+            DiscoverSort.TOP_RATED, 1,
+        )
+        Unit
+    }
+
+    @Test
+    fun `malformed adult and duplicate cards are excluded and titles fall back`() = runBlocking {
+        val repository = DiscoverRepository { _, _ ->
+            """{"total_pages":1,"results":[
+                {"id":1,"title":" ","original_title":" Original ","release_date":"2020-01-01"},
+                {"id":1,"title":"Duplicate"},
+                {"id":2,"title":"Adult","adult":true},
+                {"id":0,"title":"Bad ID"},
+                {"title":"No ID"},
+                {"id":3,"title":""}
+            ]}"""
+        }
+        val card = repository.discover(
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
+            DiscoverSort.POPULAR, 1,
+        ).results.single() as MovieSearchResponse
+        assertEquals("Original", card.name)
+        assertEquals(2020, card.year)
+        assertEquals("TMDB", card.apiName)
+        assertEquals("https://www.themoviedb.org/movie/1", card.url)
+    }
+
+    @Test
+    fun `genre lists drop missing names invalid IDs and duplicates`() = runBlocking {
+        val repository = DiscoverRepository { path, _ ->
+            assertEquals("/genre/movie/list", path)
+            """{"genres":[{"id":27,"name":"Horror"},{"id":27,"name":"Horror"},
+                {"id":0,"name":"Unknown"},{"id":53,"name":""}]}"""
+        }
+        assertEquals(listOf(TmdbGenre(27, "Horror")), repository.genres(DiscoverMediaType.MOVIES))
+    }
+
+    @Test
+    fun `pagination respects TMDB page limit and empty responses`() = runBlocking {
+        val repository = DiscoverRepository { _, _ -> """{"total_pages":900,"results":[]}""" }
+        assertFalse(
+            repository.discover(
+                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
+                DiscoverSort.POPULAR, 500,
+            ).hasMore
+        )
+        val empty = DiscoverRepository { _, _ -> "{}" }
+            .discover(
+                DiscoverMediaType.SERIES, DiscoverLanguage.ALL, TmdbRatingFilter.ALL, emptySet(), null, null,
+                DiscoverSort.POPULAR, 1,
+            )
+        assertTrue(empty.results.isEmpty())
+        assertFalse(empty.hasMore)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `invalid genre and page filters are rejected`() = runBlocking {
+        DiscoverRepository { _, _ -> "{}" }
+            .discover(
+                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, setOf(-1), null, null,
+                DiscoverSort.POPULAR, 1,
+            )
+        Unit
+    }
+
+    @Test
+    fun `invalid year range is rejected`() = runBlocking {
+        try {
+            DiscoverRepository { _, _ -> "{}" }.discover(
+                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), 2010, 2005,
+                DiscoverSort.POPULAR, 1,
+            )
+            assertTrue(false)
+        } catch (e: IllegalArgumentException) {
+            assertTrue(true)
+        }
+    }
+
+    @Test(expected = IOException::class)
+    fun `network errors propagate to the retry state`() = runBlocking {
+        DiscoverRepository { _, _ -> throw IOException("Offline") }
+            .discover(
+                DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
+                DiscoverSort.POPULAR, 1,
+            )
+        Unit
+    }
+
+    @Test
+    fun `cards carry year and first three catalogue genre names`() {
+        val catalogue = mapOf(28 to "Action", 12 to "Adventure", 878 to "Sci-Fi", 35 to "Comedy")
+        val card = TmdbTitle(
+            id = 1, title = "Epic", releaseDate = "2024-05-01",
+            genreIds = listOf(28, 28, 12, 878, 35, 999),
+            voteAverage = 8.0, voteCount = 100,
+        ).toSearchResponse("movie", catalogue)
+        assertEquals(2024, card.year)
+        assertEquals(listOf("Action", "Adventure", "Sci-Fi"), card.genres)
+    }
+
+    @Test
+    fun `unknown-only genres leave cards without a strip`() {
+        val card = TmdbTitle(id = 1, title = "Epic").toSearchResponse("movie", mapOf(28 to "Action"))
+        assertNull(card.genres)
+    }
+
+    @Test
+    fun `discover enriches cards with catalogue genre names`() = runBlocking {
+        val repository = DiscoverRepository { path, _ ->
+            when (path) {
+                "/genre/movie/list" -> """{"genres":[{"id":28,"name":"Action"},{"id":35,"name":"Comedy"}]}"""
+                else -> """{"total_pages":1,"results":[{"id":1,"title":"Film","genre_ids":[28,35,999]}]}"""
+            }
+        }
+        repository.genres(DiscoverMediaType.MOVIES)
+        val card = repository.discover(
+            DiscoverMediaType.MOVIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
+            DiscoverSort.POPULAR, 1,
+        ).results.single()
+        assertEquals(listOf("Action", "Comedy"), card.genres)
+    }
+
+    @Test(expected = CancellationException::class)
+    fun `cancellation propagates when filters change`() = runBlocking {
+        DiscoverRepository { _, _ -> throw CancellationException("New filter") }
+            .discover(
+                DiscoverMediaType.SERIES, DiscoverLanguage.ENGLISH, TmdbRatingFilter.ALL, emptySet(), null, null,
+                DiscoverSort.POPULAR, 1,
+            )
+        Unit
+    }
+}

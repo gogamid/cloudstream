@@ -402,10 +402,14 @@ fun TriStateItem(
 
 @Composable
 fun TextItem(label: String, value: String, onChange: (String) -> Unit) {
+    val input = com.lagradost.cloudstream4.compose.rememberTvTextInput()
     OutlinedTextField(
+        readOnly = input.readOnly,
+        keyboardOptions = input.options(androidx.compose.foundation.text.KeyboardOptions.Default),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = SettingsItemsPaddings.Horizontal, vertical = 4.dp),
+            .padding(horizontal = SettingsItemsPaddings.Horizontal, vertical = 4.dp)
+            .then(input.modifier),
         label = { Text(text = label) },
         value = value,
         onValueChange = onChange,

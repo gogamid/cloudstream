@@ -66,6 +66,12 @@
                     tools:text="7.7" />
 
                 <TextView
+                    android:id="@+id/text_year"
+                    style="@style/YearButton"
+                    android:layout_gravity="end"
+                    tools:text="2024" />
+
+                <TextView
                     android:id="@+id/text_flag"
                     style="@style/SearchBox"
                     android:layout_gravity="end"
@@ -104,6 +110,22 @@
                 android:layout_gravity="bottom"
                 android:orientation="vertical"
                 android:paddingBottom="7dp">
+                <TextView
+                    android:id="@+id/text_genres"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp"
+                    android:shadowColor="#80000000"
+                    android:shadowDx="0"
+                    android:shadowDy="1"
+                    android:shadowRadius="2"
+                    android:textColor="@color/white"
+                    android:textSize="11sp"
+                    tools:text="Action • Adventure • Sci-Fi" />
                 <TextView
                     android:id="@+id/episode_text"
                     android:layout_width="wrap_content"

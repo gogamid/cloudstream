@@ -36,7 +36,7 @@ import java.nio.charset.Charset
  * enough to identify the subtitle format.
  */
 @OptIn(UnstableApi::class)
-class CustomDecoder(private val fallbackFormat: Format?) : SubtitleParser {
+class CustomDecoder(private val fallbackFormat: Format?, private val applyOffset: Boolean = true) : SubtitleParser {
     companion object {
         fun updateForcedEncoding(context: Context) {
             val settingsManager = PreferenceManager.getDefaultSharedPreferences(context)
@@ -240,7 +240,7 @@ class CustomDecoder(private val fallbackFormat: Format?) : SubtitleParser {
         //https://github.com/LagradOst/CloudStream-2/blob/ddd774ee66810137ff7bd65dae70bcf3ba2d2489/CloudStreamForms/CloudStreamForms/Script/MainChrome.cs#L388
         val subtitleParser = when {
             // "WEBVTT" can be hidden behind invisible characters not filtered by trim
-            trimmedText.substring(0, 10).contains("WEBVTT", ignoreCase = true) -> WebvttParser()
+            trimmedText.take(10).contains("WEBVTT", ignoreCase = true) -> WebvttParser()
             trimmedText.startsWith("<?xml version=\"", ignoreCase = true) -> TtmlParser()
             (trimmedText.startsWith(
                 "[Script Info]",
@@ -281,7 +281,9 @@ class CustomDecoder(private val fallbackFormat: Format?) : SubtitleParser {
         return subtitleParser
     }
 
-    val currentSubtitleCues = mutableListOf<SubtitleCue>()
+    private val currentSubtitleCues = SubtitleCueStore<SubtitleCue>()
+
+    fun subtitleCuesSnapshot(): List<SubtitleCue> = currentSubtitleCues.snapshot()
 
 
     override fun parse(
@@ -308,7 +310,7 @@ class CustomDecoder(private val fallbackFormat: Format?) : SubtitleParser {
             val updatedCues =
                 CuesWithTiming(
                     newCue.cues,
-                    newCue.startTimeUs - subtitleOffset.times(1000),
+                    newCue.startTimeUs - (if (applyOffset) subtitleOffset.times(1000) else 0L),
                     newCue.durationUs
                 )
 
@@ -316,8 +318,10 @@ class CustomDecoder(private val fallbackFormat: Format?) : SubtitleParser {
         }
         Log.i(TAG, "Parse subtitle, current parser: $realDecoder")
         try {
-            val inputString = getStr(data).first
-            Log.i(TAG, "Subtitle preview: ${inputString.substring(0, 30)}")
+            require(offset >= 0 && length >= 0 && offset <= data.size && length <= data.size - offset)
+            val input = if (offset == 0 && length == data.size) data else data.copyOfRange(offset, offset + length)
+            val inputString = getStr(input).first
+            Log.i(TAG, "Subtitle preview: ${inputString.take(30)}")
             if (inputString.isNotBlank()) {
                 var str: String = trimStr(inputString)
                 realDecoder = realDecoder ?: getSubtitleParser(inputString)
@@ -339,8 +343,8 @@ class CustomDecoder(private val fallbackFormat: Format?) : SubtitleParser {
                 val array = str.toByteArray()
                 realDecoder?.parse(
                     array,
-                    minOf(array.size, offset),
-                    minOf(array.size, length),
+                    0,
+                    array.size,
                     outputOptions,
                     customOutput
                 )
@@ -382,10 +386,10 @@ class CustomSubtitleDecoderFactory : SubtitleDecoderFactory {
         ).contains(format.sampleMimeType)
     }
 
-    private var latestDecoder: WeakReference<CustomDecoder>? = null
+    @Volatile private var latestDecoder: WeakReference<CustomDecoder>? = null
 
     fun getSubtitleCues(): List<SubtitleCue>? {
-        return latestDecoder?.get()?.currentSubtitleCues
+        return latestDecoder?.get()?.subtitleCuesSnapshot()
     }
 
     /**

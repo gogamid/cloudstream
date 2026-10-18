@@ -276,6 +276,7 @@ class SettingsAccount : BasePreferenceFragmentCompat(), BiometricCallback {
         fun showAppLogin(activity: Activity, api: AuthRepo) {
             val binding: AddAccountInputBinding =
                 AddAccountInputBinding.inflate(activity.layoutInflater, null, false)
+            com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
             val builder =
                 AlertDialog.Builder(activity, R.style.AlertDialogCustom)
                     .setView(binding.root)

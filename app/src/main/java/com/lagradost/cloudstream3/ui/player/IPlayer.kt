@@ -211,6 +211,8 @@ interface IPlayer {
     fun setPlaybackSpeed(speed: Float)
 
     fun getIsPlaying(): Boolean
+    /** Playback intent stays true while buffering; use when restoring after dialogs. */
+    fun getPlayWhenReady(): Boolean = getIsPlaying()
     /** Current player duration in milliseconds */
     fun getDuration(): Long?
     /** Current player position in milliseconds */
@@ -232,6 +234,7 @@ interface IPlayer {
     fun releaseCallbacks()
 
     fun updateSubtitleStyle(style: SaveCaptionStyle)
+    fun refreshSubtitles() { seekTime(-1) }
     fun saveData()
 
     fun addTimeStamps(timeStamps: List<VideoSkipStamp>)
@@ -254,7 +257,7 @@ interface IPlayer {
     fun hasPreview() : Boolean
 
     fun setActiveSubtitles(subtitles: Set<SubtitleData>)
-    fun setPreferredSubtitles(subtitle: SubtitleData?): Boolean // returns true if the player requires a reload, null for nothing
+    fun setPreferredSubtitles(subtitle: SubtitleData?, userInitiated: Boolean = false): Boolean // true only for backends requiring a reload
     fun getCurrentPreferredSubtitle(): SubtitleData?
 
     fun handleEvent(event: CSPlayerEvent, source: PlayerEventSource = PlayerEventSource.UI)

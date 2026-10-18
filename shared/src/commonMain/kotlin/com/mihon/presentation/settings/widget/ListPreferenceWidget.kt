@@ -43,7 +43,8 @@ fun <T> ListPreferenceWidget(
             },
             confirmText = stringResource(Res.string.ok),
             dismissText = stringResource(Res.string.cancel),
-            iconProvider = iconProvider
+            iconProvider = iconProvider,
+            applyShortcut = true,
         )
         /*AlertDialog(
             onDismissRequest = { isDialogShown = false },

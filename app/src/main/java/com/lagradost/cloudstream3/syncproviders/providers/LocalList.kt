@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.syncproviders.AuthData
 import com.lagradost.cloudstream3.syncproviders.SyncAPI
 import com.lagradost.cloudstream3.syncproviders.SyncIdName
 import com.lagradost.cloudstream3.ui.WatchType
+import com.lagradost.cloudstream3.ui.discover.DiscoverWatchlist
 import com.lagradost.cloudstream3.ui.library.ListSorting
 import com.lagradost.cloudstream3.ui.settings.Globals.TV
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
@@ -31,12 +32,14 @@ class LocalList : SyncAPI() {
             getAllWatchStateIds()?.map { id ->
                 Pair(id, getResultWatchState(id))
             }
-        }?.distinctBy { it.first } ?: return null
+        }?.distinctBy { it.first }.orEmpty()
 
         val list = ioWork {
             val isTrueTv = isLayout(TV)
 
-            val baseMap = WatchType.entries.filter { it != WatchType.NONE }.associate {
+            val baseMap = (listOf(WatchType.PLANTOWATCH) + WatchType.entries.filter {
+                it != WatchType.NONE && it != WatchType.PLANTOWATCH
+            }).associate {
                 // None is not something to display
                 it.stringRes to emptyList<SyncAPI.LibraryItem>()
             } + mapOf(
@@ -71,7 +74,14 @@ class LocalList : SyncAPI() {
                 baseMap + watchStatusMap + subscriptionsMap + favoritesMap
             }
 
-            result
+            result + mapOf(
+                WatchType.PLANTOWATCH.stringRes to (result[WatchType.PLANTOWATCH.stringRes].orEmpty() +
+                    DiscoverWatchlist.entries().map { it.toLibraryItem() }),
+                WatchType.COMPLETED.stringRes to (result[WatchType.COMPLETED.stringRes].orEmpty() +
+                    DiscoverWatchlist.entries(DiscoverWatchlist.Status.COMPLETED).map { it.toLibraryItem() }),
+                WatchType.DROPPED.stringRes to (result[WatchType.DROPPED.stringRes].orEmpty() +
+                    DiscoverWatchlist.entries(DiscoverWatchlist.Status.IGNORED).map { it.toLibraryItem() }),
+            )
         }
 
         return LibraryMetadata(

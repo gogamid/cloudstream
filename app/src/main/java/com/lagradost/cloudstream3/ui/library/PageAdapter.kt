@@ -1,6 +1,12 @@
 package com.lagradost.cloudstream3.ui.library
 
+import android.view.KeyEvent
 import android.view.LayoutInflater
+import com.google.android.material.tabs.TabLayout
+import com.lagradost.cloudstream3.R
+import com.lagradost.cloudstream3.ui.settings.Globals.TV
+import com.lagradost.cloudstream3.ui.settings.Globals.EMULATOR
+import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.core.view.isVisible
@@ -51,6 +57,8 @@ class PageAdapter(
         position: Int
     ) {
         val binding = holder.view as? SearchResultGridExpandedBinding ?: return
+        binding.imageView.alpha = 1f
+        binding.imageView.clearColorFilter()
 
         /** https://stackoverflow.com/questions/8817522/how-to-get-color-code-of-image-view */
         SearchResultBuilder.bind(
@@ -76,6 +84,17 @@ class PageAdapter(
             binding.watchProgress.progress = item.episodesCompleted
         }
 
+        if (isLayout(TV or EMULATOR)) {
+            holder.itemView.setOnKeyListener { view, key, event ->
+                if (key == KeyEvent.KEYCODE_DPAD_UP && position < resView.spanCount) {
+                    if (event.action == KeyEvent.ACTION_DOWN) {
+                        val tabs = view.rootView.findViewById<TabLayout>(R.id.library_tab_layout)
+                        tabs?.getTabAt(tabs.selectedTabPosition)?.view?.requestFocus()
+                    }
+                    true
+                } else false
+            }
+        }
         binding.imageText.text = item.name
     }
 }

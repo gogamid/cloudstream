@@ -1,7 +1,6 @@
 package com.lagradost.cloudstream3.extractors
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Prerelease
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
@@ -12,7 +11,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Prerelease
-class Hexload: ExtractorApi() {
+class Hexload : ExtractorApi() {
     override val name: String = "Hexload"
     override val mainUrl: String = "https://hexload.com"
     override val requiresReferer: Boolean = false
@@ -29,7 +28,7 @@ class Hexload: ExtractorApi() {
         val requestArgs = jsDictEntryRegex.findAll(respData).associate {
             it.groupValues[1] to it.groupValues[2]
         }
-        Log.d("requestArgs", requestArgs.toString())
+        // Request arguments may contain tokens: never log them.
         val streamResponse = app.post("$mainUrl/download", data = requestArgs)
             .parsed<StreamResponse>()
 

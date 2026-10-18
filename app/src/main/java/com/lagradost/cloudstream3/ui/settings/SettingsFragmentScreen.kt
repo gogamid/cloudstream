@@ -289,19 +289,22 @@ object SettingsFragmentScreen : Screen {
     @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
     @Composable
     fun SettingsSearch(textFieldState : TextFieldState) {
+        val input = com.lagradost.cloudstream4.compose.rememberTvTextInput()
         var hasFocus by remember { mutableStateOf(false) }
         val focusProgress by animateFloatAsState(targetValue = if (hasFocus) 1.0f else 0.0f)
         val focusManager = LocalFocusManager.current
         val focusRequester = remember { FocusRequester() }
         TextField(
             state = textFieldState,
-            keyboardOptions = KeyboardOptions.Default.copy(
+            readOnly = input.readOnly,
+            keyboardOptions = input.options(KeyboardOptions.Default.copy(
                 imeAction = ImeAction.Search,
                 // This option is bugged on compose, making it unable to open at all
                 // showKeyboardOnFocus = false
-            ),
+            )),
             modifier = Modifier
                 .fillMaxWidth()
+                .then(input.modifier)
                 .padding(horizontal = 24.dp - 12.dp * focusProgress)
                 .focusOutline(enabled = isLayout(TV), CircleShape)
                 .onFocusChanged { newFocus ->

@@ -86,6 +86,7 @@ fun ColorDialog(
     color: Color,
     dismiss: () -> Unit,
     confirm: (Color) -> Unit,
+    applyShortcut: Boolean = false,
 ) {
     var alpha by remember { mutableFloatStateOf(color.alpha) }
     var selectedColor by remember { mutableStateOf(HsvColor(color)) }
@@ -106,6 +107,7 @@ fun ColorDialog(
             }
         },
         text = {
+            if (applyShortcut) DialogApplyEffect { confirm(renderedColor) }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

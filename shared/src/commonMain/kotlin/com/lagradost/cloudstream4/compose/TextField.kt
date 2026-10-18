@@ -14,11 +14,13 @@ fun BlackTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     onValueChange: (String) -> Unit,
 ) {
+    val input = rememberTvTextInput()
     TextField(
-        modifier = modifier.focusOutline(),
+        modifier = modifier.then(input.modifier).focusOutline(),
+        readOnly = input.readOnly,
         value = value,
         onValueChange = onValueChange,
-        keyboardOptions = keyboardOptions,
+        keyboardOptions = input.options(keyboardOptions),
         placeholder = {
             Text(text = placeHolder)
         },

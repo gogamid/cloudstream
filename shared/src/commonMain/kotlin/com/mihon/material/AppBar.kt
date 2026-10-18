@@ -257,6 +257,9 @@ fun SearchToolbar(
         titleContent = {
             if (searchQuery == null) return@AppBar titleContent()
 
+            val input = com.lagradost.cloudstream4.compose.rememberTvTextInput()
+            val tvInput = com.lagradost.cloudstream4.compose.isLayout(
+                com.lagradost.cloudstream4.compose.TV or com.lagradost.cloudstream4.compose.EMULATOR)
             val keyboardController = LocalSoftwareKeyboardController.current
             val focusManager = LocalFocusManager.current
 
@@ -269,20 +272,22 @@ fun SearchToolbar(
             }
 
             BasicTextField(
+                readOnly = input.readOnly,
                 value = searchQuery,
                 onValueChange = onChangeSearchQuery,
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
+                    .then(input.modifier)
                     .runOnEnterKeyPressed(action = searchAndClearFocus)
-                    .showSoftKeyboard(remember { searchQuery.isEmpty() })
+                    .showSoftKeyboard(!tvInput && remember { searchQuery.isEmpty() })
                     .clearFocusOnSoftKeyboardHide(),
                 textStyle = MaterialTheme.typography.titleMedium.copy(
                     color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Normal,
                     fontSize = 18.sp,
                 ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardOptions = input.options(KeyboardOptions(imeAction = ImeAction.Search)),
                 keyboardActions = KeyboardActions(onSearch = { searchAndClearFocus() }),
                 singleLine = true,
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.onBackground),

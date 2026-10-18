@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.window.DialogProperties
+import com.lagradost.cloudstream4.compose.rememberTvTextInput
+import com.lagradost.cloudstream4.compose.DialogApplyEffect
 import com.lagradost.cloudstream4.generated.resources.Res
 import com.lagradost.cloudstream4.generated.resources.cancel
 import com.lagradost.cloudstream4.generated.resources.error
@@ -49,12 +51,30 @@ fun EditTextPreferenceWidget(
         var textFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
             mutableStateOf(TextFieldValue(value))
         }
+        var saving by remember { mutableStateOf(false) }
+        val canApply = !saving && textFieldValue.text != value && textFieldValue.text.isNotBlank()
+        val submit: () -> Unit = {
+            if (!saving && textFieldValue.text != value && textFieldValue.text.isNotBlank()) {
+                saving = true
+                scope.launch {
+                    try {
+                        if (onConfirm(textFieldValue.text)) onDismissRequest()
+                    } finally {
+                        saving = false
+                    }
+                }
+            }
+        }
         AlertDialog(
             onDismissRequest = onDismissRequest,
             title = { Text(text = title) },
             text = {
+                DialogApplyEffect(canApply, submit)
+                val input = rememberTvTextInput()
                 OutlinedTextField(
                     value = textFieldValue,
+                    readOnly = input.readOnly,
+                    keyboardOptions = input.options(androidx.compose.foundation.text.KeyboardOptions.Default),
                     onValueChange = { textFieldValue = it },
                     trailingIcon = {
                         if (textFieldValue.text.isBlank()) {
@@ -67,7 +87,7 @@ fun EditTextPreferenceWidget(
                     },
                     isError = textFieldValue.text.isBlank(),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().then(input.modifier),
                 )
             },
             properties = DialogProperties(
@@ -75,14 +95,8 @@ fun EditTextPreferenceWidget(
             ),
             confirmButton = {
                 TextButton(
-                    enabled = textFieldValue.text != value && textFieldValue.text.isNotBlank(),
-                    onClick = {
-                        scope.launch {
-                            if (onConfirm(textFieldValue.text)) {
-                                onDismissRequest()
-                            }
-                        }
-                    },
+                    enabled = canApply,
+                    onClick = submit,
                 ) {
                     Text(text = stringResource(Res.string.ok))
                 }

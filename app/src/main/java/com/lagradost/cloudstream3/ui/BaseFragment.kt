@@ -75,7 +75,13 @@ private interface BaseFragmentHelper<T : ViewBinding> {
      */
     fun onViewReady(view: View, savedInstanceState: Bundle?) {
         fixLayout(view)
+        com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(
+            view, dialog = this is DialogFragment
+        )
         binding?.let { onBindingCreated(it, savedInstanceState) }
+        (this as? DialogFragment)?.dialog?.let {
+            com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(it)
+        }
     }
 
     /**

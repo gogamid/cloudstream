@@ -118,17 +118,19 @@ class DynamicRangeCompressor : AudioProcessor {
     private var lastReleaseMs  = -1f
     private var lastSampleRate = -1
 
+    // Keep reusable storage separate from the pending output handed to the sink.
+    private var buffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
     private var inputEnded = false
 
     // ── AudioProcessor ────────────────────────────────────────────────────────
 
     override fun configure(inputAudioFormat: AudioFormat): AudioFormat {
+        format = inputAudioFormat
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT &&
             inputAudioFormat.encoding != C.ENCODING_PCM_FLOAT) {
             return inputAudioFormat  // pass unsupported formats through unchanged
         }
-        format       = inputAudioFormat
         isFloat      = inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT
         sampleRate   = inputAudioFormat.sampleRate
         channelCount = inputAudioFormat.channelCount
@@ -188,7 +190,7 @@ class DynamicRangeCompressor : AudioProcessor {
             input.position(frameStart)
             repeat(channelCount) {
                 val s = input.getShort() / 32768f
-                out.putShort((s * gain).coerceIn(-1f, 1f).let { (it * 32768f).toInt().toShort() })
+                out.putShort((s * gain * 32768f).toInt().coerceIn(-32768, 32767).toShort())
             }
         }
     }
@@ -207,7 +209,7 @@ class DynamicRangeCompressor : AudioProcessor {
     }
 
     override fun isEnded(): Boolean =
-        inputEnded && outputBuffer === AudioProcessor.EMPTY_BUFFER
+        inputEnded && !outputBuffer.hasRemaining()
 
     // AudioProcessor.flush() (no-arg) is deprecated upstream in favor of a
     // seek-aware overload, but this interface implementation still only exposes
@@ -226,6 +228,7 @@ class DynamicRangeCompressor : AudioProcessor {
     override fun reset() {
         flush()
         format = AudioFormat.NOT_SET
+        buffer = AudioProcessor.EMPTY_BUFFER
         isFloat = false
     }
 
@@ -241,12 +244,13 @@ class DynamicRangeCompressor : AudioProcessor {
     }
 
     private fun replaceOutputBuffer(size: Int): ByteBuffer {
-        if (outputBuffer.capacity() < size) {
-            outputBuffer = ByteBuffer.allocateDirect(size).order(ByteOrder.nativeOrder())
+        if (buffer.capacity() < size) {
+            buffer = ByteBuffer.allocateDirect(size).order(ByteOrder.nativeOrder())
         } else {
-            outputBuffer.clear()
+            buffer.clear()
         }
-        return outputBuffer
+        outputBuffer = buffer
+        return buffer
     }
 
     private fun updateCoefficients() {

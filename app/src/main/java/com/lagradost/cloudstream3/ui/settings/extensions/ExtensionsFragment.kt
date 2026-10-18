@@ -255,6 +255,7 @@ class ExtensionsFragment : BaseFragment<FragmentExtensionsBinding>(
         val addRepositoryClick = View.OnClickListener {
             val ctx = context ?: return@OnClickListener
             val binding = AddRepoInputBinding.inflate(LayoutInflater.from(ctx), null, false)
+            com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
             val builder =
                 AlertDialog.Builder(ctx, R.style.AlertDialogCustom)
                     .setView(binding.root)

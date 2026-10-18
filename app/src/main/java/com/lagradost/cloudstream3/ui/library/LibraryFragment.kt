@@ -8,6 +8,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.KeyEvent
+import android.view.inputmethod.InputMethodManager
+import androidx.activity.OnBackPressedCallback
+import com.lagradost.cloudstream3.ui.settings.Globals.TV
+import com.lagradost.cloudstream3.ui.settings.Globals.EMULATOR
 import android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
 import android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
 import android.view.animation.AlphaAnimation
@@ -43,6 +48,8 @@ import com.lagradost.cloudstream3.utils.txt
 import com.lagradost.cloudstream3.ui.BaseFragment
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_LOAD
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_SHOW_METADATA
+import com.lagradost.cloudstream3.ui.discover.DiscoverWatchlist
+import com.lagradost.cloudstream3.ui.discover.DiscoverPreview
 import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
 import com.lagradost.cloudstream3.ui.settings.Globals.isLandscape
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
@@ -129,11 +136,37 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
         )
     }
 
+    private var tabMediator: TabLayoutMediator? = null
+
+    private fun focusLibraryTab() {
+        val views = binding ?: return
+        (views.root.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+            ?.hideSoftInputFromWindow(views.mainSearch.windowToken, 0)
+        views.mainSearch.clearFocus()
+        views.searchBar.setExpanded(true)
+        views.libraryTabLayout.getTabAt(views.libraryTabLayout.selectedTabPosition.coerceAtLeast(0))
+            ?.view?.requestFocus()
+    }
+
+    private fun focusLibraryGrid() {
+        val views = binding ?: return
+        val grid = views.viewpager.allViews.filterIsInstance<AutofitRecyclerView>()
+            .firstOrNull { it.tag == views.viewpager.currentItem } ?: return
+        grid.descendantFocusability = FOCUS_AFTER_DESCENDANTS
+        if ((grid.adapter?.itemCount ?: 0) == 0) return
+        val manager = grid.layoutManager as? androidx.recyclerview.widget.GridLayoutManager ?: return
+        val position = manager.findFirstVisibleItemPosition().coerceAtLeast(0)
+        manager.findViewByPosition(position)?.requestFocus()
+    }
+
     @SuppressLint("ResourceType", "CutPasteId")
     override fun onBindingCreated(
         binding: FragmentLibraryBinding,
         savedInstanceState: Bundle?
     ) {
+        if (savedInstanceState == null && libraryViewModel.currentSyncApi?.syncIdName == SyncIdName.LocalList) {
+            libraryViewModel.switchPage(0)
+        }
         binding.sortFab.setOnClickListener(sortChangeClickListener)
         binding.librarySort.setOnClickListener(sortChangeClickListener)
 
@@ -146,6 +179,35 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
                 }
             }
 
+        if (isLayout(TV or EMULATOR)) {
+            val searchText = binding.mainSearch.findViewById<TextView>(androidx.appcompat.R.id.search_src_text)
+            val downToTabs = View.OnKeyListener { _, key, event ->
+                if (key == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    if (event.action == KeyEvent.ACTION_DOWN) focusLibraryTab()
+                    true
+                } else false
+            }
+            searchText.setOnKeyListener(downToTabs)
+            searchText.nextFocusLeftId = R.id.list_selector
+            binding.mainSearch.nextFocusDownId = R.id.library_tab_layout
+            listOf(binding.mainSearch, binding.listSelector, binding.providerSelector,
+                binding.librarySort, binding.libraryRandomButtonTv).forEach { it?.setOnKeyListener(downToTabs) }
+            requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    when {
+                        binding.mainSearch.hasFocus() || binding.viewpager.hasFocus() -> focusLibraryTab()
+                        binding.libraryTabLayout.hasFocus() ->
+                            activity?.findViewById<View>(R.id.navigation_library)?.requestFocus()
+                        else -> {
+                            isEnabled = false
+                            requireActivity().onBackPressedDispatcher.onBackPressed()
+                            isEnabled = true
+                        }
+                    }
+                }
+            })
+        }
+
         val searchCallback = Runnable {
             val newText = binding.mainSearch.query.toString()
             libraryViewModel.sort(ListSorting.Query, newText)
@@ -154,6 +216,7 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
         binding.mainSearch.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
                 libraryViewModel.sort(ListSorting.Query, query)
+                if (isLayout(TV or EMULATOR)) focusLibraryTab()
                 return true
             }
 
@@ -302,6 +365,10 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
 
             when (searchClickCallback.action) {
                 SEARCH_ACTION_SHOW_METADATA -> {
+                    if (DiscoverWatchlist.isItem(searchClickCallback.card)) {
+                        DiscoverPreview.show(this, searchClickCallback.card)
+                        return@callback
+                    }
                     (activity as? MainActivity)?.loadPopup(
                         searchClickCallback.card,
                         load = false
@@ -429,7 +496,9 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
                             viewpager.startAnimation(showAnimation)
                         }
 
-                        TabLayoutMediator(
+                        tabMediator?.detach()
+                        libraryTabLayout.clearOnTabSelectedListeners()
+                        tabMediator = TabLayoutMediator(
                             libraryTabLayout,
                             viewpager,
                         ) { tab, position ->
@@ -443,10 +512,28 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
                                 hideViewpager(distance)
                             }
                             //Expand the appBar on tab focus
-                            tab.view.setOnFocusChangeListener { _, _ ->
+                            tab.view.setOnFocusChangeListener { _, focused ->
                                 binding.searchBar.setExpanded(true)
+                                if (focused && isLayout(TV or EMULATOR)) tab.select()
                             }
-                        }.attach()
+                            if (isLayout(TV or EMULATOR)) {
+                                tab.view.setOnKeyListener { _, key, event ->
+                                    when (key) {
+                                        KeyEvent.KEYCODE_DPAD_UP -> {
+                                            if (event.action == KeyEvent.ACTION_DOWN) {
+                                                binding.mainSearch.findViewById<View>(androidx.appcompat.R.id.search_src_text).requestFocus()
+                                            }
+                                            true
+                                        }
+                                        KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                            if (event.action == KeyEvent.ACTION_DOWN) binding.viewpager.post { focusLibraryGrid() }
+                                            true
+                                        }
+                                        else -> false
+                                    }
+                                }
+                            }
+                        }.also { it.attach() }
 
                         binding.libraryTabLayout.addOnTabSelectedListener(object :
                             TabLayout.OnTabSelectedListener {
@@ -492,11 +579,21 @@ class LibraryFragment : BaseFragment<FragmentLibraryBinding>(
         }
     }
 
+    override fun onDestroyView() {
+        tabMediator?.detach()
+        tabMediator = null
+        super.onDestroyView()
+    }
+
     private fun loadLibraryItem(
         syncName: SyncIdName,
         syncId: String,
         card: SearchResponse
     ) {
+        if (DiscoverWatchlist.isItem(card)) {
+            QuickSearchFragment.pushSearch(activity, card.name)
+            return
+        }
         // This basically first selects the individual opener and if that is default then
         // selects the whole list opener
         val savedListSelection =

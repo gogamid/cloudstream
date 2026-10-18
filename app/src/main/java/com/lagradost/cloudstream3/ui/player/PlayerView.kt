@@ -614,8 +614,8 @@ class PlayerView @JvmOverloads constructor(
 
     private fun onSubStyleChanged(style: SaveCaptionStyle) {
         player.updateSubtitleStyle(style)
-        // Forcefully update the subtitle encoding in case the edge size is changed.
-        player.seekTime(-1)
+        // External text reparses independently; never seek video to refresh it.
+        player.refreshSubtitles()
     }
 
     /** Error handling */

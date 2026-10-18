@@ -20,13 +20,8 @@ fun Fragment.getChooseFolderLauncher(dirSelected: (uri: Uri?, path: String?) -> 
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 
-        try {
+        withOptionalPersistableGrant(onDenied = { logError(it) }) {
             context.contentResolver.takePersistableUriPermission(uri, flags)
-        } catch (e: SecurityException) {
-            // Some non-system SAF providers grant temporary access but do not expose a
-            // persistable grant. Keep the returned URI usable for this session instead
-            // of crashing while delivering the picker result.
-            logError(e)
         }
 
         val filePath = SafeFile.fromUri(context, uri)?.filePath()
@@ -36,3 +31,15 @@ fun Fragment.getChooseFolderLauncher(dirSelected: (uri: Uri?, path: String?) -> 
         // filePath should only be used for cosmetic purposes.
         dirSelected(uri, filePath)
     }
+
+/** Some SAF providers only grant temporary access. Do not discard that usable URI. */
+internal inline fun withOptionalPersistableGrant(
+    onDenied: (SecurityException) -> Unit,
+    request: () -> Unit,
+) {
+    try {
+        request()
+    } catch (error: SecurityException) {
+        onDenied(error)
+    }
+}

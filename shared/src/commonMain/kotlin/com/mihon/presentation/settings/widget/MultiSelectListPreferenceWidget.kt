@@ -48,6 +48,7 @@ fun <T> MultiSelectListPreferenceWidget(
                 isDialogShown = false
             },
             selectedKeys = values,
+            applyShortcut = true,
         )
 
         /*

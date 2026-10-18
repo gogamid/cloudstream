@@ -303,6 +303,7 @@ class SearchFragment : BaseFragment<FragmentSearchBinding>(
                     )
                 builder.setContentView(selectMainpageBinding.root)
                 builder.show()
+                com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(builder)
                 builder.let { dialog ->
                     val previousSelectedApis = selectedApis.toSet()
                     val previousSelectedSearchTypes = selectedSearchTypes.toSet()
@@ -457,6 +458,11 @@ class SearchFragment : BaseFragment<FragmentSearchBinding>(
                     searchHistoryRecycler.isVisible = showHistory
                     searchMasterRecycler.isVisible = !showHistory && isAdvancedSearch
                     searchAutofitResults.isVisible = !showHistory && !isAdvancedSearch
+                    mainSearch.nextFocusDownId = when {
+                        showHistory -> R.id.search_history_recycler
+                        isAdvancedSearch -> R.id.search_master_recycler
+                        else -> R.id.search_autofit_results
+                    }
                     // Hide suggestions when showing history or showing search results
                     searchSuggestionsRecycler.isVisible = !showHistory && isSearchSuggestionsEnabled
                 }

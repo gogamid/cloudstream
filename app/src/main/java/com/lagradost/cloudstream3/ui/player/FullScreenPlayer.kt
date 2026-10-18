@@ -358,6 +358,11 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     }
 
     override fun subtitlesChanged() {
+        val selected = player.getCurrentPreferredSubtitle()
+        if (selected != null && selected.origin != SubtitleOrigin.EMBEDDED_IN_VIDEO) {
+            playerBinding?.playerSubtitleOffsetBtt?.isGone = false
+            return
+        }
         val tracks = player.getVideoTracks()
         val isBuiltinSubtitles = tracks.currentTextTracks.all { track ->
             track.sampleMimeType == MimeTypes.APPLICATION_MEDIA3_CUES
@@ -456,7 +461,10 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         }
     }
 
+    private var remoteMappings: Map<Int, RemoteButtonMappings.Action> = emptyMap()
+
     override fun onResume() {
+        remoteMappings = context?.let(RemoteButtonMappings::load).orEmpty()
         playerHostView?.enterFullscreen { updateOrientation() }
         setupKeyEventListener()
         playerHostView?.verifyVolume()
@@ -509,6 +517,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     private fun showSubtitleOffsetDialog() {
         val ctx = context ?: return
+        val resumeAfterSync = player.getPlayWhenReady()
         // Pause player because the subtitles cannot be continuously updated to follow playback.
         player.handleEvent(
             CSPlayerEvent.Pause,
@@ -516,6 +525,9 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         )
 
         val binding = SubtitleOffsetBinding.inflate(LayoutInflater.from(ctx), null, false)
+        binding.subtitleOffsetInput.nextFocusDownId = R.id.apply_btt
+        binding.subtitleOffsetInput.nextFocusUpId = R.id.subtitle_offset_subtract
+        com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
 
         // Use dialog as opposed to alertdialog to get fullscreen
         val dialog = Dialog(ctx, R.style.DialogFullscreenPlayer).apply {
@@ -523,6 +535,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         }
         this.selectSubtitlesDialog = dialog
         dialog.show()
+        com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(dialog)
 
         val isPortrait =
             ctx.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -613,18 +626,17 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             dialog.setOnDismissListener {
                 selectSubtitlesDialog = null
                 activity?.hideSystemUI()
+                if (resumeAfterSync) player.handleEvent(CSPlayerEvent.Play, PlayerEventSource.UI)
             }
             applyBtt.setOnClickListener {
                 selectSubtitlesDialog = null
                 subtitleDelay = currentOffset
                 dialog.dismissSafe(activity)
-                player.seekTime(1L)
             }
             resetBtt.setOnClickListener {
                 selectSubtitlesDialog = null
                 subtitleDelay = 0
                 dialog.dismissSafe(activity)
-                player.seekTime(1L)
             }
             cancelBtt.setOnClickListener {
                 selectSubtitlesDialog = null
@@ -645,7 +657,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     private fun showSpeedDialog() {
         val act = activity ?: return
-        val isPlaying = player.getIsPlaying()
+        val isPlaying = player.getPlayWhenReady()
         player.handleEvent(CSPlayerEvent.Pause, PlayerEventSource.UI)
 
         val binding: SpeedDialogBinding = SpeedDialogBinding.inflate(
@@ -1293,7 +1305,63 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         return true
     }
 
+    protected open fun selectSubtitleLanguage(language: String) = Unit
+
+    private fun runRemoteAction(action: RemoteButtonMappings.Action) {
+        val playback = when (action) {
+            RemoteButtonMappings.Action.PLAY_PAUSE -> CSPlayerEvent.PlayPauseToggle
+            RemoteButtonMappings.Action.PLAY -> CSPlayerEvent.Play
+            RemoteButtonMappings.Action.PAUSE -> CSPlayerEvent.Pause
+            RemoteButtonMappings.Action.RESTART -> CSPlayerEvent.Restart
+            RemoteButtonMappings.Action.MUTE -> CSPlayerEvent.ToggleMute
+            RemoteButtonMappings.Action.SEEK_FORWARD -> CSPlayerEvent.SeekForward
+            RemoteButtonMappings.Action.SEEK_BACK -> CSPlayerEvent.SeekBack
+            RemoteButtonMappings.Action.SKIP_CHAPTER -> CSPlayerEvent.SkipCurrentChapter
+            RemoteButtonMappings.Action.NEXT_EPISODE -> CSPlayerEvent.NextEpisode
+            RemoteButtonMappings.Action.PREVIOUS_EPISODE -> CSPlayerEvent.PrevEpisode
+            RemoteButtonMappings.Action.AUDIO_ONLY -> CSPlayerEvent.PlayAsAudio
+            else -> null
+        }
+        if (playback != null) {
+            player.handleEvent(playback)
+            return
+        }
+        when (action) {
+            RemoteButtonMappings.Action.DISABLED -> Unit
+            RemoteButtonMappings.Action.SKIP_OPENING -> skipOp()
+            RemoteButtonMappings.Action.EPISODES -> toggleEpisodesOverlay(show = true)
+            RemoteButtonMappings.Action.SUBTITLE_SEARCH -> {
+                val ctx = context ?: return
+                if (subsProvidersIsActive) openOnlineSubPicker(ctx, null) {}
+                else android.widget.Toast.makeText(ctx, R.string.remote_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+            }
+            RemoteButtonMappings.Action.SUBTITLE_TIMING -> showSubtitleOffsetDialog()
+            RemoteButtonMappings.Action.RUSSIAN_SUBTITLES -> selectSubtitleLanguage("ru")
+            RemoteButtonMappings.Action.ENGLISH_SUBTITLES -> selectSubtitleLanguage("en")
+            RemoteButtonMappings.Action.SOURCES -> showMirrorsDialogue()
+            RemoteButtonMappings.Action.TRACKS -> showTracksDialogue()
+            RemoteButtonMappings.Action.SPEED -> showSpeedDialog()
+            RemoteButtonMappings.Action.RESIZE -> nextResize()
+            RemoteButtonMappings.Action.CONTROLS -> onClickChange()
+            RemoteButtonMappings.Action.LOCK -> toggleLock()
+            RemoteButtonMappings.Action.EXIT -> activity?.popCurrentPage("FullScreenPlayer")
+            else -> Unit // Playback actions handled above.
+        }
+    }
+
     private fun handleKeyEvent(event: KeyEvent, hasNavigated: Boolean): Boolean {
+        // Dialog windows own their keys; editor input must never trigger shortcuts.
+        if (isDialogOpen() || activity?.window?.decorView?.hasWindowFocus() != true ||
+            activity?.currentFocus is android.widget.EditText ||
+            com.lagradost.cloudstream3.utils.ComposeTextFocus.isTyping
+        ) return false
+        remoteMappings[event.keyCode]?.let { action ->
+            // Single press only: consume repeats and key-up without repeating actions.
+            if (!hasNavigated && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+                (!isLocked || action == RemoteButtonMappings.Action.LOCK)
+            ) runRemoteAction(action)
+            return true
+        }
         if (hasNavigated) {
             autoHide()
             return false
@@ -1301,6 +1369,13 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         val keyCode = event.keyCode
 
         if (event.action == KeyEvent.ACTION_DOWN) {
+            // Holding OK while opening playback/pressing Skip can carry repeats
+            // into the newly shown player. Never turn those repeats into Pause.
+            if (event.repeatCount > 0 && keyCode in setOf(
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_P,
+                    KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_NUMPAD_ENTER
+                )) return true
             val value = handleKeyDownEvent(keyCode)
             if (value != null) {
                 return value

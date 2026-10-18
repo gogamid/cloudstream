@@ -542,6 +542,19 @@ object CommonActivity {
     fun dispatchKeyEvent(act: Activity?, event: KeyEvent?): Boolean? {
         if (act == null) return null
         val currentFocus = act.currentFocus
+        if (event != null && com.lagradost.cloudstream3.utils.DialogApplyShortcut.handle(act.window.decorView, event)) {
+            return true
+        }
+        if (event != null && com.lagradost.cloudstream3.utils.TvTextInputNavigation.handle(currentFocus, event)) {
+            keyEventListener?.invoke(Pair(event, true))
+            return true
+        }
+
+        // Horizontal arrows belong to the editor's caret, not explicit links
+        // or player seek shortcuts. Vertical escape is handled above.
+        if (isLayout(TV) && currentFocus is android.widget.EditText &&
+            (event?.keyCode == KeyEvent.KEYCODE_DPAD_LEFT || event?.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)
+        ) return null
 
         event?.keyCode?.let { keyCode ->
             if (currentFocus == null || event.action != KeyEvent.ACTION_DOWN) return@let

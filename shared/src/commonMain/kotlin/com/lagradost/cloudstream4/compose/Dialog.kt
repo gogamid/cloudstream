@@ -130,7 +130,8 @@ fun <T> SingleSelectDialog(
     dismissText: String? = null,
     dismiss: () -> Unit,
     confirm: (T) -> Unit,
-    iconProvider: (@Composable (key: T, value: String) -> Unit)? = null
+    iconProvider: (@Composable (key: T, value: String) -> Unit)? = null,
+    applyShortcut: Boolean = false,
 ) {
     var selected by remember { mutableStateOf(selectedKey) }
     val selectedPainter = painterResource(Res.drawable.check)
@@ -147,6 +148,7 @@ fun <T> SingleSelectDialog(
         onDismissRequest = dismiss,
         title = title?.let { { Text(text = it) } },
         text = {
+            if (applyShortcut && confirmText != null) DialogApplyEffect { confirm(selected) }
             LazyColumn {
                 entries.forEach { (key, value) ->
                     item(key = key) {
@@ -344,7 +346,8 @@ fun <T> MultiSelectDialog(
     dismissText: String? = null,
     dismiss: () -> Unit,
     confirm: (Set<T>) -> Unit,
-    iconProvider: (@Composable (key: T, value: String) -> Unit)? = null
+    iconProvider: (@Composable (key: T, value: String) -> Unit)? = null,
+    applyShortcut: Boolean = false,
 ) {
     val selected = remember {
         entries.keys
@@ -372,6 +375,7 @@ fun <T> MultiSelectDialog(
         },
         title = title?.let { { Text(text = it) } },
         text = {
+            if (applyShortcut && confirmText != null) DialogApplyEffect { confirm(selected.toSet()) }
             LazyColumn {
                 entries.forEach { (key, value) ->
                     item(key = key) {

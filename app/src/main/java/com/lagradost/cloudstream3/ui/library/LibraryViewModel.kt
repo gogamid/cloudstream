@@ -67,6 +67,7 @@ class LibraryViewModel : ViewModel() {
 
     fun switchList(name: String) {
         currentSyncApi = availableSyncApis[availableApiNames.indexOf(name)]
+        _currentPage.value = 0
         _currentApiName.postValue(currentSyncApi?.name)
         reloadPages(true)
     }

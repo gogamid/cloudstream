@@ -67,6 +67,7 @@ import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.utils.DataStoreHelper
 import com.lagradost.cloudstream3.utils.DataStoreHelper.Account
+import com.lagradost.cloudstream4.compose.DialogApplyEffect
 import com.lagradost.cloudstream4.compose.ActionDialog
 import com.lagradost.cloudstream4.compose.BlackButton
 import com.lagradost.cloudstream4.compose.BlackTextField
@@ -324,6 +325,14 @@ object AccountScreen {
         }
 
         val isTv = isLayout(TV)
+        val applyAccount: () -> Unit = {
+            if (account.lockPin == null) {
+                onAction(AccountAction.SaveAccount(account))
+                onAction(AccountAction.EditAccount(null))
+            } else {
+                pendingDialog = WaitForDialogType.Login
+            }
+        }
         AlertDialog(
             containerColor = MaterialTheme.colorScheme.background,
             confirmButton = {
@@ -332,14 +341,7 @@ object AccountScreen {
                         pendingDialog = WaitForDialogType.DeleteAccount
                     }
                 }
-                WhiteButton(text = stringResource(R.string.sort_apply)) {
-                    if (account.lockPin == null) {
-                        onAction(AccountAction.SaveAccount(account))
-                        onAction(AccountAction.EditAccount(null))
-                    } else {
-                        pendingDialog = WaitForDialogType.Login
-                    }
-                }
+                WhiteButton(text = stringResource(R.string.sort_apply), onClick = applyAccount)
             },
             dismissButton = {
                 BlackButton(
@@ -359,6 +361,7 @@ object AccountScreen {
                 }
             },
             text = {
+                DialogApplyEffect(pendingDialog == null, applyAccount)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.verticalScroll(rememberScrollState())

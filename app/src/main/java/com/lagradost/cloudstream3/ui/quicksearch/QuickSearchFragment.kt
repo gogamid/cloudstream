@@ -211,6 +211,8 @@ class QuickSearchFragment : BaseFragment<QuickSearchBinding>(
         }
         binding.quickSearchAutofitResults.isVisible = isSingleProvider
         binding.quickSearchMasterRecycler.isGone = isSingleProvider
+        binding.quickSearch.nextFocusDownId = if (isSingleProvider)
+            R.id.quick_search_autofit_results else R.id.quick_search_master_recycler
 
         val listLock = ReentrantLock()
         observe(searchViewModel.currentSearch) { list ->

@@ -40,6 +40,7 @@ fun ColorPreferenceWidget(
         ColorDialog(
             title = title,
             color = color,
+            applyShortcut = true,
             dismiss = { isDialogShown = false },
             confirm = { color ->
                 isDialogShown = false

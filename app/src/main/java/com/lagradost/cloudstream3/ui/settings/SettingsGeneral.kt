@@ -198,12 +198,14 @@ class SettingsGeneral : BasePreferenceFragmentCompat() {
                     context
                 ),null,false)
 
+                com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(binding.root, dialog = true)
                 val builder =
                     AlertDialog.Builder(context, R.style.AlertDialogCustom)
                         .setView(binding.root)
 
                 val dialog = builder.create()
                 dialog.show()
+                com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(dialog)
 
                 binding.text2.text = provider.name
                 binding.applyBtt.setOnClickListener {

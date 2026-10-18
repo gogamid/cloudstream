@@ -247,6 +247,8 @@ class PlayerGeneratorViewModel : ViewModel() {
      * Save the Episode ID to prevent starting multiple link loading Jobs when preloading links.
      */
     private var currentLoadingEpisodeId: Int? = null
+    private var preloadedEpisodeId: Int? = null
+    private var preloadJob: Job? = null
 
     var forceClearCache = false
 
@@ -257,7 +259,7 @@ class PlayerGeneratorViewModel : ViewModel() {
     fun loadLinksPrev() {
         Log.i(TAG, "loadLinksPrev")
         if (generator?.hasPrev(episodeIndex) == true) {
-            episodeIndex += 1
+            episodeIndex -= 1
             loadLinks()
         }
     }
@@ -279,27 +281,30 @@ class PlayerGeneratorViewModel : ViewModel() {
     }
 
     fun preLoadNextLinks() {
-        val id = generator?.getId(episodeIndex)
-        // Do not preload if already loading
-        if (id == currentLoadingEpisodeId) return
+        val gen = generator ?: return
+        val nextIndex = episodeIndex + 1
+        if (!gen.hasCache || gen.hasNext(episodeIndex) != true) return
+        val id = gen.getId(nextIndex) ?: return
+        if (id == currentLoadingEpisodeId || id == preloadedEpisodeId) return
 
         Log.i(TAG, "preLoadNextLinks")
-        currentJob?.cancel()
+        preloadJob?.cancel()
         currentLoadingEpisodeId = id
 
-        currentJob = viewModelScope.launch {
+        preloadJob = viewModelScope.launch {
             try {
-                if (generator?.hasCache == true && generator?.hasNext(episodeIndex) == true) {
-                    safeApiCall {
-                        generator?.generateLinks(
+                if (isActive) {
+                    val result = safeApiCall {
+                        gen.generateLinks(
                             sourceTypes = LOADTYPE_INAPP,
                             clearCache = false,
                             isCasting = false,
                             callback = {},
                             subtitleCallback = {},
-                            offset = episodeIndex + 1
+                            offset = nextIndex
                         )
                     }
+                    if (isActive && result is Resource.Success && result.value) preloadedEpisodeId = id
                 }
             } catch (t: Throwable) {
                 logError(t)
@@ -318,6 +323,9 @@ class PlayerGeneratorViewModel : ViewModel() {
 
     fun attachGenerator(newGenerator: VideoGenerator<*>, index: Int) {
         Log.i(TAG, "attachGenerator with generator=$newGenerator and index=$index")
+        preloadJob?.cancel()
+        currentLoadingEpisodeId = null
+        preloadedEpisodeId = null
         generator = newGenerator
         episodeIndex = index
     }
@@ -384,6 +392,8 @@ class PlayerGeneratorViewModel : ViewModel() {
     fun loadLinks(sourceTypes: Set<ExtractorLinkType> = LOADTYPE_INAPP) {
         Log.i(TAG, "loadLinks with generator=$generator and index=$episodeIndex")
         currentJob?.cancel()
+        preloadJob?.cancel()
+        currentLoadingEpisodeId = null
         val index = episodeIndex
 
         // Clear old data and reset the state
@@ -404,16 +414,18 @@ class PlayerGeneratorViewModel : ViewModel() {
             )
         }
 
+        val instance = state.instance
+        val gen = generator
         currentJob = viewModelScope.launchSafe {
-            // Load more data
+            // Bind callbacks to this exact generation, even if a provider swallows cancellation.
             val loadingState = safeApiCall {
-                generator?.generateLinks(
+                gen?.generateLinks(
                     sourceTypes = sourceTypes,
                     clearCache = forceClearCache,
                     callback = { link ->
                         if (isActive)
                             modifyState {
-                                add(link)
+                                if (this.instance == instance) add(link) else this
                             }
                     },
                     isCasting = false,
@@ -421,7 +433,7 @@ class PlayerGeneratorViewModel : ViewModel() {
                     subtitleCallback = { link ->
                         if (isActive && isValidSubtitle(link))
                             modifyState {
-                                add(link)
+                                if (this.instance == instance) add(link) else this
                             }
                     })
                 Unit
@@ -431,9 +443,9 @@ class PlayerGeneratorViewModel : ViewModel() {
                 return@launchSafe
             }
 
-            /** Only mark as success if we have not skipped loading */
+            /** Completion remains truthful even when playback starts early. */
             modifyState {
-                if (!isActive) {
+                if (!isActive || this.instance != instance) {
                     this
                 } else {
                     when (loading) {

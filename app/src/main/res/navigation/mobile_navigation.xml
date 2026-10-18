@@ -323,6 +323,12 @@
     </fragment>
 
     <fragment
+        android:id="@+id/navigation_discover"
+        android:name="com.lagradost.cloudstream3.ui.discover.DiscoverFragment"
+        android:label="@string/title_discover"
+        tools:layout="@layout/fragment_discover" />
+
+    <fragment
         android:id="@+id/navigation_downloads"
         android:name="com.lagradost.cloudstream3.ui.download.DownloadFragment"
         android:label="@string/title_downloads"

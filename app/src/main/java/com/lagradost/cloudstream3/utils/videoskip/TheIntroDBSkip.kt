@@ -38,20 +38,7 @@ class TheIntroDBSkip : SkipAPI() {
             "$mainUrl/v4/media?$idSuffix&season=$season&episode=${episode.episode}"
         }
         val root = app.get(url).parsed<Root>()
-        return arrayOf(
-            root.intro to SkipType.Intro,
-            root.credits to SkipType.Credits,
-            root.recap to SkipType.Recap,
-            root.preview to SkipType.Preview
-        ).flatMap { (list, type) ->
-            list.map { stamp ->
-                SkipStamp(
-                    type,
-                    stamp.startMs ?: 0L,
-                    stamp.endMs ?: episodeDurationMs
-                )
-            }
-        }
+        return root.toStamps(episodeDurationMs)
     }
 
     @Serializable
@@ -61,7 +48,18 @@ class TheIntroDBSkip : SkipAPI() {
         @JsonProperty("recap") @SerialName("recap") val recap: List<Stamp> = emptyList(),
         @JsonProperty("credits") @SerialName("credits") val credits: List<Stamp> = emptyList(),
         @JsonProperty("preview") @SerialName("preview") val preview: List<Stamp> = emptyList(),
-    )
+    ) {
+        internal fun toStamps(episodeDurationMs: Long): List<SkipStamp> = arrayOf(
+            intro to SkipType.Intro,
+            credits to SkipType.Credits,
+            recap to SkipType.Recap,
+            preview to SkipType.Preview
+        ).flatMap { (list, type) ->
+            list.map { stamp ->
+                SkipStamp(type, stamp.startMs ?: 0L, stamp.endMs ?: episodeDurationMs)
+            }
+        }
+    }
 
     @Serializable
     data class Stamp(
