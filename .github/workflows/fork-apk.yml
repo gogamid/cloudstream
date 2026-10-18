@@ -119,7 +119,7 @@ jobs:
             adb install -r emulator-tests/*.apk
             adb logcat -c
             adb shell pm list instrumentation | tee compose-input-instrumentation.txt
-            adb shell am instrument -w -r -e class com.lagradost.cloudstream3.ForkComposeInputTest "$(adb shell pm list instrumentation | tr -d '\r' | awk '/^instrumentation:com.lagradost.cloudstream3/ { sub(/^instrumentation:/, "", $1); print $1; exit }')" | tee compose-input-results.txt
+            adb shell am instrument -w -r -e class com.lagradost.cloudstream3.ForkComposeInputTest,com.lagradost.cloudstream3.ForkComposePreferenceRetryTest "$(adb shell pm list instrumentation | tr -d '\r' | awk '/^instrumentation:com.lagradost.cloudstream3/ { sub(/^instrumentation:/, "", $1); print $1; exit }')" | tee compose-input-results.txt
             adb logcat -d > compose-input-logcat.txt
             grep -q 'OK (6 tests)' compose-input-results.txt
       - name: Upload emulator diagnostics

@@ -231,6 +231,7 @@ dependencies {
     testImplementation(libs.json)
     androidTestImplementation(libs.core)
     androidTestImplementation(libs.espresso.core)
+    androidTestImplementation("org.jetbrains.compose.ui:ui-test-junit4:${libs.versions.composeMultiplatform.get()}")
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.instancio.core)
     androidTestImplementation(libs.junit.ktx)
