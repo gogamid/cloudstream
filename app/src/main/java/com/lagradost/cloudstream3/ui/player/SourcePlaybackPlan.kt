@@ -22,6 +22,24 @@ internal class SourcePlaybackPlan<T>(private val keyOf: (T) -> Any? = { it }) {
         }
     }
 
+    /** Manual cycling follows the chooser's visible order, wraps and may revisit
+     * attempted sources. It must not consume/reset automatic failover state.
+     * A now-hidden current source remains an anchor, never a selectable target.
+     */
+    fun nextManual(candidates: List<Candidate<T>>, current: T?): T? {
+        val currentKey = current?.let(keyOf)
+        val displayed = candidates.filter {
+            it.allowed || (current != null && keyOf(it.id) == currentKey)
+        }.distinctBy { keyOf(it.id) }
+        if (displayed.isEmpty()) return null
+        val index = displayed.indexOfFirst { current != null && keyOf(it.id) == currentKey }
+        for (offset in 1..displayed.size) {
+            val next = displayed[(index + offset) % displayed.size]
+            if (next.allowed && (current == null || keyOf(next.id) != currentKey)) return next.id
+        }
+        return null
+    }
+
     private data class Ranked<T>(val candidate: Candidate<T>, val failures: Int,
                                  val manualMatch: Int, val workingMatch: Int)
 

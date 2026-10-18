@@ -298,6 +298,25 @@ class GeneratorPlayer : FullScreenPlayer() {
             android.widget.Toast.LENGTH_SHORT).show()
     }
 
+    override fun selectNextVideoSource() {
+        val ctx = context ?: return
+        if (!isAdded || view == null || sourceSessionInstance != viewModel.state.instance ||
+            !viewLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) || isDialogOpen()) return
+        val current = currentSelectedLink
+        val next = sourcePlan.nextManual(sourceCandidates(), current)
+        if (next == null) {
+            android.widget.Toast.makeText(ctx, R.string.remote_source_missing, android.widget.Toast.LENGTH_SHORT).show()
+            return // Keep playing; late arrivals can be selected by a later press.
+        }
+        val intent = if (current == null) true else player.getPlayWhenReady()
+        rememberVideo(next)
+        // This is a user choice, not automatic error failover: no five-second
+        // startup deadline. The normal manual chooser uses this same load path.
+        loadLink(next, sameEpisode = current != null, manualSelection = true, autoPlay = intent)
+        android.widget.Toast.makeText(ctx, ctx.getString(R.string.remote_source_selected,
+            next.first?.name ?: next.second?.name.orEmpty()), android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     private fun noSubtitles(): Boolean {
         return setSubtitles(null, true)
     }

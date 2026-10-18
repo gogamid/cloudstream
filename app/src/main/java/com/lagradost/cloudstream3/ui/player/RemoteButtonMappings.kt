@@ -22,6 +22,7 @@ internal object RemoteButtonMappings {
         SUBTITLE_TIMING(R.string.remote_subtitle_timing),
         RUSSIAN_SUBTITLES(R.string.remote_russian_subtitles),
         ENGLISH_SUBTITLES(R.string.remote_english_subtitles), SOURCES(R.string.remote_sources),
+        NEXT_SOURCE(R.string.remote_next_source),
         TRACKS(R.string.remote_tracks), SPEED(R.string.remote_speed), RESIZE(R.string.remote_resize),
         CONTROLS(R.string.remote_controls), LOCK(R.string.remote_lock),
         AUDIO_ONLY(R.string.remote_audio_only), EXIT(R.string.remote_exit),

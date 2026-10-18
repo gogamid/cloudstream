@@ -9,7 +9,7 @@ import org.junit.Test
 
 class RemoteButtonMappingsTest {
     @Test fun `numbers numpad and colored buttons can be mapped`() {
-        listOf(KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_6,
+        listOf(KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_5, KeyEvent.KEYCODE_6,
             KeyEvent.KEYCODE_NUMPAD_1, KeyEvent.KEYCODE_PROG_RED,
             KeyEvent.KEYCODE_PROG_GREEN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
         ).forEach { assertTrue(RemoteButtonMappings.isMappable(it)) }
@@ -34,6 +34,15 @@ class RemoteButtonMappingsTest {
             KeyEvent.KEYCODE_2 to Action.DISABLED), decoded)
         assertNull(decoded[KeyEvent.KEYCODE_3])
         assertTrue(RemoteButtonMappings.decode(emptySet()).isEmpty())
+    }
+
+    @Test fun `button five can store next source without changing existing bindings`() {
+        val decoded = RemoteButtonMappings.decode(setOf(
+            "${KeyEvent.KEYCODE_5}:NEXT_SOURCE", "${KeyEvent.KEYCODE_9}:SOURCES"
+        ))
+        assertEquals(Action.NEXT_SOURCE, decoded[KeyEvent.KEYCODE_5])
+        assertEquals(Action.SOURCES, decoded[KeyEvent.KEYCODE_9])
+        assertNull(RemoteButtonMappings.decode(emptySet())[KeyEvent.KEYCODE_5])
     }
 
     @Test fun `mappings remain eligible for settings backups`() {

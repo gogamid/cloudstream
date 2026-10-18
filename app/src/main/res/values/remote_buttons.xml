@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="remote_buttons">Remote buttons</string>
-    <string name="remote_buttons_summary">Assign single-press shortcuts for fullscreen playback</string>
+    <string name="remote_buttons_summary">Configure playback shortcuts and the dialog Apply button</string>
     <string name="remote_add">Add mapping</string>
-    <string name="remote_reset">Reset all mappings</string>
-    <string name="remote_reset_confirm">Restore the default remote shortcuts? All custom mappings will be removed.</string>
+    <string name="remote_reset">Reset playback mappings</string>
+    <string name="remote_reset_confirm">Restore the default playback shortcuts? Custom playback mappings will be removed. The dialog Apply button is unchanged.</string>
     <string name="remote_press_button">Press a remote button</string>
     <string name="remote_capture_hint">Press and release a number, colored button, or other shortcut key. Navigation, OK, Back, volume, and system buttons stay reserved. Some buttons may be intercepted by your TV. Back cancels.</string>
     <string name="remote_default">Default (remove override)</string>
@@ -24,6 +24,9 @@
     <string name="remote_subtitle_search">Online subtitle search</string>
     <string name="remote_subtitle_timing">Subtitle timing</string>
     <string name="remote_sources">Sources / subtitles</string>
+    <string name="remote_next_source">Next video source</string>
+    <string name="remote_source_missing">No other video source is currently available.</string>
+    <string name="remote_source_selected">Source: %1$s</string>
     <string name="remote_tracks">Audio / video tracks</string>
     <string name="remote_speed">Playback speed</string>
     <string name="remote_resize">Cycle video sizing</string>

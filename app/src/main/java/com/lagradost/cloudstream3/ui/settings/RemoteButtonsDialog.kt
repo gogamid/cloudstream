@@ -5,20 +5,27 @@ import android.view.KeyEvent
 import androidx.appcompat.app.AlertDialog
 import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.ui.player.RemoteButtonMappings
+import com.lagradost.cloudstream3.utils.DialogApplyShortcut
 
 /** Single-press capture is completed on key-up so it cannot select the next dialog. */
 internal object RemoteButtonsDialog {
     fun show(context: Context) {
         val mappings = RemoteButtonMappings.load(context).toSortedMap()
         val keys = mappings.keys.toList()
-        val labels = listOf(context.getString(R.string.remote_add)) + mappings.map { (key, action) ->
+        val applyKey = DialogApplyShortcut.load(context)?.let(RemoteButtonMappings::keyName)
+            ?: context.getString(R.string.remote_disabled)
+        val labels = listOf(
+            "${context.getString(R.string.dialog_apply_button)} → $applyKey",
+            context.getString(R.string.remote_add)
+        ) + mappings.map { (key, action) ->
             "${RemoteButtonMappings.keyName(key)} → ${context.getString(action.label)}"
         } + context.getString(R.string.remote_reset)
         AlertDialog.Builder(context, R.style.AlertDialogCustom)
             .setTitle(R.string.remote_buttons)
             .setItems(labels.toTypedArray()) { _, which ->
                 when (which) {
-                    0 -> capture(context)
+                    0 -> DialogApplyButtonSettings.show(context) { show(context) }
+                    1 -> capture(context)
                     labels.lastIndex -> AlertDialog.Builder(context, R.style.AlertDialogCustom)
                         .setMessage(R.string.remote_reset_confirm)
                         .setPositiveButton(R.string.remote_reset) { _, _ ->
@@ -26,7 +33,7 @@ internal object RemoteButtonsDialog {
                             show(context)
                         }
                         .setNegativeButton(android.R.string.cancel, null).show()
-                    else -> choose(context, keys[which - 1])
+                    else -> choose(context, keys[which - 2])
                 }
             }.show()
     }

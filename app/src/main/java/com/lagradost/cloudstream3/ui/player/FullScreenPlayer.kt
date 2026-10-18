@@ -1307,6 +1307,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     }
 
     protected open fun selectSubtitleLanguage(language: String) = Unit
+    protected open fun selectNextVideoSource() = Unit
 
     private fun runRemoteAction(action: RemoteButtonMappings.Action) {
         val playback = when (action) {
@@ -1340,6 +1341,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             RemoteButtonMappings.Action.RUSSIAN_SUBTITLES -> selectSubtitleLanguage("ru")
             RemoteButtonMappings.Action.ENGLISH_SUBTITLES -> selectSubtitleLanguage("en")
             RemoteButtonMappings.Action.SOURCES -> showMirrorsDialogue()
+            RemoteButtonMappings.Action.NEXT_SOURCE -> selectNextVideoSource()
             RemoteButtonMappings.Action.TRACKS -> showTracksDialogue()
             RemoteButtonMappings.Action.SPEED -> showSpeedDialog()
             RemoteButtonMappings.Action.RESIZE -> nextResize()

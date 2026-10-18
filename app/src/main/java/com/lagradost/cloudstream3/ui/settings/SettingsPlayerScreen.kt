@@ -6,7 +6,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -43,7 +42,6 @@ object SettingsPlayerScreen : SearchableSettings {
         val settings = rememberAppSettings()
 
         val context = LocalContext.current
-        var applyKey by remember { mutableStateOf(com.lagradost.cloudstream3.utils.DialogApplyShortcut.load(context)) }
         val defaultPlayerName = stringResource(R.string.player_settings_play_in_app)
         val players = remember(context) {
             mapOf("" to defaultPlayerName) + VideoClickActionHolder.getPlayers()
@@ -90,17 +88,6 @@ object SettingsPlayerScreen : SearchableSettings {
                         subtitle = stringResource(R.string.remote_buttons_summary),
                         icon = painterResource(R.drawable.play_arrow_24px),
                         onClick = { RemoteButtonsDialog.show(context) }
-                    ),
-                    Preference.PreferenceItem.TextPreference(
-                        title = stringResource(R.string.dialog_apply_button),
-                        subtitle = applyKey?.let { com.lagradost.cloudstream3.ui.player.RemoteButtonMappings.keyName(it) }
-                            ?: stringResource(R.string.remote_disabled),
-                        icon = painterResource(R.drawable.ic_baseline_check_24),
-                        onClick = {
-                            DialogApplyButtonSettings.show(context) {
-                                applyKey = com.lagradost.cloudstream3.utils.DialogApplyShortcut.load(context)
-                            }
-                        }
                     ),
                     Preference.PreferenceItem.ListPreference(
                         title = stringResource(R.string.player_pref),

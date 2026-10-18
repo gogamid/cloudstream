@@ -46,6 +46,11 @@ class ForkComposeInputTestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val mode = intent.getStringExtra("mode") ?: "tv"
+        if (mode == "remote") {
+            com.lagradost.cloudstream3.ui.settings.RemoteButtonsDialog.show(this)
+            ready.set(true)
+            return
+        }
         setContent {
             CloudStreamThemeAppSettings {
                 CompositionLocalProvider(DeviceLayout.LocalLayout provides if (mode == "phone" || mode == "retry") PHONE else TV) {
