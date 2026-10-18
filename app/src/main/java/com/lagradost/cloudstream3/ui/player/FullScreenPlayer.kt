@@ -966,6 +966,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         }
 
         dialog.show()
+        com.lagradost.cloudstream3.utils.DialogApplyShortcut.install(dialog)
     }
 
     private fun saveCompressorSettings(c: DynamicRangeCompressor) {
@@ -1438,6 +1439,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     override fun onSaveInstanceState(outState: Bundle) {
         // As this is video specific it is better to not do any setKey/getKey
         outState.putLong(SUBTITLE_DELAY_BUNDLE_KEY, subtitleDelay)
+        outState.putInt(SubtitleDelayState.VERSION_KEY, SubtitleDelayState.VERSION)
         super.onSaveInstanceState(outState)
     }
 
@@ -1460,7 +1462,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         // init variables
         setPlayBackSpeed(DataStoreHelper.playBackSpeed)
         savedInstanceState?.getLong(SUBTITLE_DELAY_BUNDLE_KEY)?.let {
-            subtitleDelay = it
+            subtitleDelay = SubtitleDelayState.restore(it, savedInstanceState.getInt(SubtitleDelayState.VERSION_KEY, 0))
         }
 
         // handle tv controls directly based on player state

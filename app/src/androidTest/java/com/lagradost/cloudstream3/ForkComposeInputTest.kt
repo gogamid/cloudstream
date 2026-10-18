@@ -65,6 +65,10 @@ class ForkComposeInputTest {
             await("OK did not explicitly open the IME") { read(scenario) { it.keyboardVisible } }
             press(KeyEvent.KEYCODE_BACK)
             await("Back did not close the IME") { !read(scenario) { it.keyboardVisible } }
+            press(KeyEvent.KEYCODE_DPAD_CENTER)
+            await("OK did not reopen the IME") { read(scenario) { it.keyboardVisible } }
+            press(KeyEvent.KEYCODE_BACK)
+            await("Back did not close the reopened IME") { !read(scenario) { it.keyboardVisible } }
             press(KeyEvent.KEYCODE_DPAD_UP)
             await("Up did not escape the first editor") { read(scenario) { it.leaveFocused.get() && !it.typing } }
         }

@@ -6,6 +6,7 @@ import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import com.lagradost.cloudstream3.ui.player.DynamicRangeCompressor
 import com.lagradost.cloudstream3.ui.player.PlaybackIntent
+import com.lagradost.cloudstream3.ui.player.SubtitleDelayState
 import com.lagradost.cloudstream3.utils.ComposeTextFocus
 import org.junit.Assert.*
 import org.junit.Test
@@ -63,6 +64,17 @@ class UpstreamIntegrationTest {
             ComposeTextFocus.update(first, false)
             ComposeTextFocus.update(second, false)
         }
+    }
+
+    @Test fun `legacy subtitle UI state preserves its actual native offset on restoration`() {
+        assertEquals(-1000L, SubtitleDelayState.restore(1000L, 0))
+        assertEquals(1000L, SubtitleDelayState.restore(-1000L, 0))
+        assertEquals(0L, SubtitleDelayState.restore(0, 0))
+    }
+
+    @Test fun `new subtitle offset state is not inverted again`() {
+        assertEquals(1000L, SubtitleDelayState.restore(1000L, SubtitleDelayState.VERSION))
+        assertEquals(-1000L, SubtitleDelayState.restore(-1000L, SubtitleDelayState.VERSION))
     }
 
     private fun samples(vararg values: Short): ByteBuffer =

@@ -1977,7 +1977,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         sourceCollectionWaitJob?.cancel()
         sourceStartupJob?.cancel()
         // Old dialog listeners must not resume or mutate a recreated player.
-        listOf(selectSourceDialog, selectSubtitlesDialog, selectTrackDialog, selectSpeedDialog).forEach { dialog ->
+        listOf(selectSourceDialog, selectSubtitlesDialog, selectTrackDialog, selectSpeedDialog, selectCompressorDialog).forEach { dialog ->
             dialog?.setOnDismissListener(null)
             dialog?.dismissSafe(activity)
         }
@@ -1985,6 +1985,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         selectSubtitlesDialog = null
         selectTrackDialog = null
         selectSpeedDialog = null
+        selectCompressorDialog = null
         cachedSortedSourceLinks = null
         cachedSourceCandidates = emptyList()
         super.onDestroyView()

@@ -38,18 +38,21 @@ The TV remains on the validated maintenance build while this branch is validated
   stable signing certificate. Extension repositories are not retargeted.
 - Retain upstream compressor functionality, but reuse drained PCM storage, reset
   unsupported configurations, and saturate positive 16-bit peaks without wrapping
-  their sign. No measured audio-quality or TV CPU improvement is claimed.
+  their sign. Include its native Apply button in the opt-in shortcut and dismiss
+  its window during player view teardown, like the other player dialogs. No
+  measured audio-quality or TV CPU improvement is claimed.
 - Positive subtitle offsets mean earlier cues: embedded timestamps subtract the
   offset, independent subtitle lookup adds it, and upstream sync UI uses that same
-  convention. Existing clock tests cover both directions; no key/sign migration
-  is needed. Compose subtitle-style changes refresh text through the backend
+  convention. Existing clock tests cover both directions. No preference key is
+  changed; a version marker converts legacy video-instance bundle offsets once
+  on task restoration so their physical sync is retained. Compose subtitle-style changes refresh text through the backend
   interface instead of unconditionally seeking video. Embedded refresh can still
   use the existing tiny ordinary seek; external refresh never does.
 
 ## Validation gate
 
 Run the entire app unit suite (including the existing 130 fork regressions and
-upstream subtitle-language tests), ten new boundary tests, and the full library
+upstream subtitle-language tests), twelve new boundary tests, and the full library
 JVM suite including upstream's loopback HTTP HLS-download fixtures. Reuse those
 HLS fixtures instead of retaining redundant app-side copies. Compile shared JVM
 code as well as Android code. Lint, debug APK, stable release APK and permanent
