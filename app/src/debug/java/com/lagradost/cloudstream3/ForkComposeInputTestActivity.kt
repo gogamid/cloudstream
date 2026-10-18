@@ -46,10 +46,11 @@ class ForkComposeInputTestActivity : ComponentActivity() {
         val mode = intent.getStringExtra("mode") ?: "tv"
         setContent {
             CloudStreamThemeAppSettings {
-                CompositionLocalProvider(DeviceLayout.LocalLayout provides if (mode == "phone") PHONE else TV) {
+                CompositionLocalProvider(DeviceLayout.LocalLayout provides if (mode == "phone" || mode == "retry") PHONE else TV) {
                     Surface(Modifier.fillMaxSize()) {
                         when (mode) {
                             "apply" -> ApplyDialog()
+                            "retry" -> RetryPreference()
                             "disabled", "unrelated" -> OtherDialog(mode)
                             else -> Editor()
                         }
@@ -76,6 +77,15 @@ class ForkComposeInputTestActivity : ComponentActivity() {
             requester.requestFocus()
             ready.set(true)
         }
+    }
+
+    @Composable
+    private fun RetryPreference() {
+        com.mihon.presentation.settings.widget.EditTextPreferenceWidget(
+            title = "Retry preference", subtitle = null, icon = null, value = "Original",
+            onConfirm = { applied.incrementAndGet() >= 2 },
+        )
+        SideEffect { ready.set(true) }
     }
 
     @Composable

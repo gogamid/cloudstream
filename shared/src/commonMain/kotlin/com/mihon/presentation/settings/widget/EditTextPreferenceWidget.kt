@@ -52,9 +52,9 @@ fun EditTextPreferenceWidget(
             mutableStateOf(TextFieldValue(value))
         }
         var saving by remember { mutableStateOf(false) }
-        val canApply = !saving && textFieldValue.text != value && textFieldValue.text.isNotBlank()
+        val canApply = isDialogShown && !saving && textFieldValue.text != value && textFieldValue.text.isNotBlank()
         val submit: () -> Unit = {
-            if (!saving && textFieldValue.text != value && textFieldValue.text.isNotBlank()) {
+            if (isDialogShown && !saving && textFieldValue.text != value && textFieldValue.text.isNotBlank()) {
                 saving = true
                 scope.launch {
                     try {
@@ -69,7 +69,8 @@ fun EditTextPreferenceWidget(
             onDismissRequest = onDismissRequest,
             title = { Text(text = title) },
             text = {
-                DialogApplyEffect(canApply, submit)
+                // Validation may reject without closing; submit owns its busy guard.
+                DialogApplyEffect(enabled = canApply, oneShot = false, apply = submit)
                 val input = rememberTvTextInput()
                 OutlinedTextField(
                     value = textFieldValue,

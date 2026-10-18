@@ -6,4 +6,4 @@ import androidx.compose.runtime.Composable
 actual fun isTvRemoteInput(): Boolean = false
 
 @Composable
-actual fun DialogApplyEffect(enabled: Boolean, apply: () -> Unit) = Unit
+actual fun DialogApplyEffect(enabled: Boolean, oneShot: Boolean, apply: () -> Unit) = Unit

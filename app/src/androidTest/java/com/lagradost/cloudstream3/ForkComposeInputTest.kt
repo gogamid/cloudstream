@@ -1,6 +1,8 @@
 package com.lagradost.cloudstream3
 
 import android.content.Intent
+import android.os.Bundle
+import android.view.accessibility.AccessibilityNodeInfo
 import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.test.core.app.ActivityScenario
@@ -106,6 +108,37 @@ class ForkComposeInputTest {
             await("Disabled Apply dialog did not open") { read(scenario) { it.ready.get() && it.dialogView?.hasWindowFocus() == true } }
             press(applyKey)
             assertTrue(read(scenario) { it.applied.get() == 0 && it.unrelated.get() == 0 })
+        }
+    }
+
+    private fun findNode(check: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
+        fun visit(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            if (node == null || check(node)) return node
+            for (index in 0 until node.childCount) visit(node.getChild(index))?.let { return it }
+            return null
+        }
+        return visit(instrumentation.uiAutomation.rootInActiveWindow)
+    }
+
+    @Test fun rejectedEditorApplyCanRetryAndSuccessfulSaveCannotSubmitAgain() {
+        launch("retry").use { scenario ->
+            await("Edit preference did not render") {
+                findNode { it.isClickable && it.text?.contains("Retry preference") == true } != null
+            }
+            assertTrue(findNode { it.isClickable && it.text?.contains("Retry preference") == true }!!
+                .performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            await("Preference editor did not open") { findNode { it.isEditable } != null }
+            val arguments = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "Changed")
+            }
+            assertTrue(findNode { it.isEditable }!!.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments))
+            await("Edited text did not update") { findNode { it.isEditable && it.text?.contains("Changed") == true } != null }
+            press(applyKey)
+            await("First validation did not run") { read(scenario) { it.applied.get() == 1 } }
+            press(applyKey)
+            await("Rejected Apply could not retry") { read(scenario) { it.applied.get() == 2 } }
+            press(applyKey)
+            assertTrue("Successful save submitted again while closing", read(scenario) { it.applied.get() == 2 })
         }
     }
 

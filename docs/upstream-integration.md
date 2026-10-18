@@ -1,4 +1,4 @@
-# Full upstream integration (work in progress)
+# Full upstream integration candidate
 
 Branch: `feature/upstream-integration`, based on upstream `master` `4c4c679`.
 Merged fork maintenance `c2c4841`, then refreshed upstream to `eb962b4`
@@ -35,6 +35,9 @@ The TV remains on the validated maintenance build while this branch is validated
   Android hook binds the dialog window from inside its content, works without an
   initially focused child, uses the existing saved key/key-up policy, observes
   current actions/enabled state and restores the previous callback on disposal.
+  Closing actions latch immediately to prevent another gesture during Compose's
+  asynchronous dismissal; text editors retain their own busy/closed guards so a
+  rejected validation can retry without allowing duplicate successful saves.
 - Both updater implementations target `gogamid/cloudstream`, never upstream APKs.
   This does not publish releases; missing fork releases remain an update-check
   error rather than falling back to upstream. CI still verifies the permanent
@@ -62,14 +65,27 @@ code as well as Android code. Lint, debug APK, stable release APK and permanent
 certificate verification remain required. Extractor fixtures intercept HTTP;
 HLS fixtures use localhost, not live hosts.
 
-A separate Android 12 emulator gate runs five instrumentation tests against the
+A separate Android 12 emulator gate runs six instrumentation tests against the
 real Compose editor/IME and dialog-window implementations. It checks TV focus
 without automatic keyboard opening, explicit OK, vertical escape/disposal,
 unchanged phone keyboard activation, Apply key-up/repeat/cancel handling before
-child focus, disabled Apply and exclusion of generic Login buttons. Its host is
+child focus, disabled Apply, exclusion of generic Login buttons, and retrying
+an actual preference editor after validation rejects its first submission. Its host is
 **debug-only**, not part of the signed stable release. No tests use the user's TV
 or alter its data. Do not deploy a failing or unfinished integration build.
 
-Pending: CI results and a real UI/device pass. Unit/fixture tests and a successful
-signed build alone do **not** establish TV D-pad/IME behavior, no-rebuffer subtitle
-switching, live providers, codecs/WebView stability, or stress/memory behavior.
+## Validation record and remaining device checks
+
+Run `39154735954` passed **695 app/library tests**, zero failures/errors/skips,
+shared JVM compilation, lint, both APK builds and permanent signing verification.
+Its emulator tests passed TV focus/IME/reopen/vertical escape, phone IME, disabled
+Apply and generic Login exclusion. The fifth check exposed a real repeated-Apply
+race during asynchronous dismissal; the immediate latch fix and editor retry
+check are included in the next run, not excused by weakening that assertion.
+
+Require a completely green [latest branch workflow](https://github.com/gogamid/cloudstream/actions/workflows/fork-apk.yml?query=branch%3Afeature%2Fupstream-integration)
+for the current code before deployment. No result on an earlier commit validates
+subsequent code changes. Android emulator checks do not establish physical-TV
+remote/IME behavior, live-provider availability, no-rebuffer playback on the TV,
+codec/WebView stability or stress/memory behavior. Those remain real-device
+checks; the user's TV has not been updated by this integration work.

@@ -31,7 +31,7 @@ object RemoteInputBridge {
  * before a child receives focus. Never opt arbitrary Login/Add/Delete actions in.
  */
 @Composable
-expect fun DialogApplyEffect(enabled: Boolean = true, apply: () -> Unit)
+expect fun DialogApplyEffect(enabled: Boolean = true, oneShot: Boolean = true, apply: () -> Unit)
 
 @Composable
 expect fun isTvRemoteInput(): Boolean

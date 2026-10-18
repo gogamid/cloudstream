@@ -361,7 +361,7 @@ object AccountScreen {
                 }
             },
             text = {
-                DialogApplyEffect(pendingDialog == null, applyAccount)
+                DialogApplyEffect(enabled = pendingDialog == null, apply = applyAccount)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.verticalScroll(rememberScrollState())
