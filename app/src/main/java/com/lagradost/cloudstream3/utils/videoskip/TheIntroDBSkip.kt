@@ -32,37 +32,34 @@ class TheIntroDBSkip : SkipAPI() {
                 ?: return null
 
         val url = if (data.isMovie()) {
-            "$mainUrl/v2/media?$idSuffix"
+            "$mainUrl/v4/media?$idSuffix"
         } else {
             val season = episode.season ?: return null
-            "$mainUrl/v2/media?$idSuffix&season=$season&episode=${episode.episode}"
+            "$mainUrl/v4/media?$idSuffix&season=$season&episode=${episode.episode}"
         }
         val root = app.get(url).parsed<Root>()
-        return arrayOf(
-            root.intro to SkipType.Intro,
-            root.credits to SkipType.Credits,
-            root.recap to SkipType.Recap,
-            root.preview to SkipType.Preview
-        ).map { (list, type) ->
-            list.map { stamp ->
-                SkipStamp(
-                    type,
-                    stamp.startMs ?: 0L,
-                    stamp.endMs ?: episodeDurationMs
-                )
-            }
-        }.flatten()
+        return root.toStamps(episodeDurationMs)
     }
 
     @Serializable
     data class Root(
-        @JsonProperty("tmdb_id") @SerialName("tmdb_id") val tmdbId: Long,
         @JsonProperty("type") @SerialName("type") val type: String,
         @JsonProperty("intro") @SerialName("intro") val intro: List<Stamp> = emptyList(),
         @JsonProperty("recap") @SerialName("recap") val recap: List<Stamp> = emptyList(),
         @JsonProperty("credits") @SerialName("credits") val credits: List<Stamp> = emptyList(),
         @JsonProperty("preview") @SerialName("preview") val preview: List<Stamp> = emptyList(),
-    )
+    ) {
+        internal fun toStamps(episodeDurationMs: Long): List<SkipStamp> = arrayOf(
+            intro to SkipType.Intro,
+            credits to SkipType.Credits,
+            recap to SkipType.Recap,
+            preview to SkipType.Preview
+        ).flatMap { (list, type) ->
+            list.map { stamp ->
+                SkipStamp(type, stamp.startMs ?: 0L, stamp.endMs ?: episodeDurationMs)
+            }
+        }
+    }
 
     @Serializable
     data class Stamp(

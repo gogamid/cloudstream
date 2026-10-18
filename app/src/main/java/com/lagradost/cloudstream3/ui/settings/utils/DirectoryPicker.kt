@@ -5,12 +5,13 @@ import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import com.lagradost.cloudstream3.CloudStreamApp
+import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.safefile.SafeFile
 
 fun Fragment.getChooseFolderLauncher(dirSelected: (uri: Uri?, path: String?) -> Unit) =
     registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         // It lies, it can be null if file manager quits.
-        if(uri == null) {
+        if (uri == null) {
             dirSelected(null, null)
             return@registerForActivityResult
         }
@@ -19,7 +20,9 @@ fun Fragment.getChooseFolderLauncher(dirSelected: (uri: Uri?, path: String?) -> 
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 
-        context.contentResolver.takePersistableUriPermission(uri, flags)
+        withOptionalPersistableGrant(onDenied = { logError(it) }) {
+            context.contentResolver.takePersistableUriPermission(uri, flags)
+        }
 
         val filePath = SafeFile.fromUri(context, uri)?.filePath()
         println("Selected URI path: $uri - Full path: $filePath")
@@ -28,3 +31,15 @@ fun Fragment.getChooseFolderLauncher(dirSelected: (uri: Uri?, path: String?) -> 
         // filePath should only be used for cosmetic purposes.
         dirSelected(uri, filePath)
     }
+
+/** Some SAF providers only grant temporary access. Do not discard that usable URI. */
+internal inline fun withOptionalPersistableGrant(
+    onDenied: (SecurityException) -> Unit,
+    request: () -> Unit,
+) {
+    try {
+        request()
+    } catch (error: SecurityException) {
+        onDenied(error)
+    }
+}
