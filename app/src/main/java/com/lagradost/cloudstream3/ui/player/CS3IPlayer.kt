@@ -136,6 +136,7 @@ const val toleranceAfterUs = 300_000L
 class CS3IPlayer : IPlayer {
     private var playerListener: Player.Listener? = null
     private var isPlaying = false
+    private val playbackIntent = PlaybackIntent()
     private var exoPlayer: ExoPlayer? = null
         set(value) {
             // If the old value is not null then the player has not been properly released.
@@ -196,7 +197,7 @@ class CS3IPlayer : IPlayer {
     override fun getDuration(): Long? = exoPlayer?.duration
     override fun getPosition(): Long? = exoPlayer?.currentPosition
     override fun getIsPlaying(): Boolean = isPlaying
-    override fun getPlayWhenReady(): Boolean = exoPlayer?.playWhenReady ?: isPlaying
+    override fun getPlayWhenReady(): Boolean = exoPlayer?.playWhenReady ?: playbackIntent.value
 
     // Separate actual playback from the cached autoplay/resume intent above.
     private var hasActuallyPlayed = false
@@ -310,6 +311,7 @@ class CS3IPlayer : IPlayer {
         preview: Boolean,
     ) {
         Log.i(TAG, "loadPlayer")
+        val previousIntent = getPlayWhenReady()
         if (sameEpisode) {
             saveData()
         } else {
@@ -322,11 +324,10 @@ class CS3IPlayer : IPlayer {
             playbackPosition = it
         }
 
-        // we want autoplay because of TV and UX
-        isPlaying = autoPlay ?: isPlaying
-
-        // release the current exoplayer and cache
+        // Teardown may emit actual-playing=false. It must not overwrite the
+        // next player's autoplay request (nor an intentional paused reload).
         releasePlayer()
+        playbackIntent.beginLoad(autoPlay, previousIntent)
         currentLink = link
         currentDownloadedFile = data
 
@@ -640,6 +641,7 @@ class CS3IPlayer : IPlayer {
 
     private fun releasePlayer(saveTime: Boolean = true) {
         playbackOperations.advance()
+        playbackIntent.detachPlayer()
         hasActuallyPlayed = false
         Log.i(TAG, "releasePlayer")
         eventLooperIndex += 1
@@ -649,6 +651,11 @@ class CS3IPlayer : IPlayer {
         currentSubtitleDecoder = null
 
         exoPlayer?.apply {
+            // Detach callbacks before stop/pause can publish teardown state.
+            playerListener?.let {
+                removeListener(it)
+                playerListener = null
+            }
             playWhenReady = false
 
             // This may look weird, however on some TV devices the audio does not stop playing
@@ -659,16 +666,13 @@ class CS3IPlayer : IPlayer {
                 // No documented exception, but just to be extra safe
                 logError(t)
             }
-            playerListener?.let {
-                removeListener(it)
-                playerListener = null
-            }
             stop()
             release()
         }
         //simpleCache?.release()
 
         exoPlayer = null
+        isPlaying = false
         event(PlayerAttachedEvent(null))
         //simpleCache = null
     }
@@ -989,6 +993,11 @@ class CS3IPlayer : IPlayer {
 
     override fun handleEvent(event: CSPlayerEvent, source: PlayerEventSource) {
         Log.i(TAG, "handleEvent ${event.name}")
+        when (event) {
+            CSPlayerEvent.Play -> playbackIntent.request(true)
+            CSPlayerEvent.Pause -> playbackIntent.request(false)
+            else -> Unit
+        }
         try {
             exoPlayer?.apply {
                 when (event) {
@@ -1030,7 +1039,7 @@ class CS3IPlayer : IPlayer {
                     }
 
                     CSPlayerEvent.PlayPauseToggle -> {
-                        if (isPlaying) {
+                        if (playWhenReady) {
                             handleEvent(CSPlayerEvent.Pause, source)
                         } else {
                             handleEvent(CSPlayerEvent.Play, source)
@@ -1449,7 +1458,7 @@ class CS3IPlayer : IPlayer {
                 playBackSpeed,
                 cacheSize = cacheSize,
                 videoBufferMs = videoBufferMs,
-                playWhenReady = isPlaying, // this keep the current state of the player
+                playWhenReady = playbackIntent.value,
                 subtitleOffset = currentSubtitleOffset,
                 maxVideoHeight = maxVideoHeight,
                 audioSources = audioSources,
@@ -1490,7 +1499,12 @@ class CS3IPlayer : IPlayer {
 
             LiveHelper.registerPlayer(exoPlayer)
 
+            val intentToken = playbackIntent.token
             exoPlayer?.addListener(object : Player.Listener {
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                    playbackIntent.observeBackend(intentToken, playWhenReady)
+                }
+
                 override fun onTracksChanged(tracks: Tracks) {
                     safe {
                         val textTracks = tracks.groups.filter { it.type == TRACK_TYPE_TEXT }
@@ -2033,7 +2047,7 @@ class CS3IPlayer : IPlayer {
 
         val resumePlayback = getPlayWhenReady()
         releasePlayer(false)
-        isPlaying = resumePlayback
+        playbackIntent.beginLoad(resumePlayback)
         currentLink?.let {
             loadOnlinePlayer(context, it)
         } ?: currentDownloadedFile?.let {

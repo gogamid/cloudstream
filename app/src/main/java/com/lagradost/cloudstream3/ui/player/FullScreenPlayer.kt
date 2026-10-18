@@ -1090,6 +1090,13 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         val keyCode = event.keyCode
 
         if (event.action == KeyEvent.ACTION_DOWN) {
+            // Holding OK while opening playback/pressing Skip can carry repeats
+            // into the newly shown player. Never turn those repeats into Pause.
+            if (event.repeatCount > 0 && keyCode in setOf(
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_P,
+                    KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_NUMPAD_ENTER
+                )) return true
             val value = handleKeyDownEvent(keyCode)
             if (value != null) {
                 return value
