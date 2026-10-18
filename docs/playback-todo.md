@@ -17,7 +17,7 @@ into the autoplay regression fix.
 Reported behavior: the first selected source prepares but remains paused until
 Play is pressed again, whether source collection was skipped or completed.
 
-## 2. Seamless external-subtitle switching — in progress
+## 2. Seamless external-subtitle switching — installed, awaiting TV confirmation
 
 - [x] Implement a video-clock-driven external-subtitle controller, independent
       of the video media sources/decoder. Language shortcuts and cycling select it.
@@ -26,9 +26,15 @@ Play is pressed again, whether source collection was skipped or completed.
 - [x] Keep all descriptors available, with a two-track/4 MiB raw-byte LRU cache.
 - [x] Cancel stale reads/results on rapid changes and retain the previous working
       subtitle on load failure without routing it through video-source fallback.
-- [ ] Preserve subtitle timing, styling, subtitles-off, series preferences,
-      embedded subtitle selection, and missing/error handling.
-- [ ] Regression tests, GitHub Actions build, then TV verification.
+- [x] Preserve timing/styling, subtitles-off, series preferences and native
+      embedded selection; external sync offsets no longer seek the video.
+- [x] Fifteen new pure selection/cache/read/clock tests passed, along with the
+      existing language-cycling and autoplay tests, lint and signed stable build.
+- [x] GitHub Actions run `39132259363`, tested code `3931594`.
+- [x] In-place TV update and launch.
+- [ ] User confirmation: English/Russian switching and repeated same-language
+      cycling do not pause, restart or rebuffer video.
+- [ ] TV checks for subtitle sync, embedded tracks, file subtitles and load failure.
 
 Reported behavior: choosing a different external subtitle rebuilds/rebuffers the
 playing video. This is a regression/trade-off from selected-track-only attachment
