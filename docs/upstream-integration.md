@@ -1,10 +1,18 @@
-# Full upstream integration candidate
+# Full upstream integration — complete
 
 Branch: `feature/upstream-integration`, based on upstream `master` `4c4c679`.
 Merged fork maintenance `c2c4841`, then refreshed upstream to `eb962b4`
 (the newer +10 seek-button fix); no changes are pushed to upstream.
-The TV remains on the validated maintenance build while real-device validation
-of this integration candidate is pending; automated validation has passed.
+Status: **complete**. Automated validation passed, the stable build was installed
+in place on the TV, and the user reported that it looks good and accepted completion.
+
+- [x] Upstream integration and regression validation.
+- [x] Signed stable APK installed without clearing data or settings.
+- [x] Installed APK checksum verified; app launched and remained running with an empty startup crash buffer.
+- [x] User TV acceptance: “looks good, mark it as complete”.
+
+This closes the integration task, not every separate playback investigation.
+The integration branch is retained; completion does not imply a merge into fork master.
 
 ## Integration decisions
 
@@ -77,10 +85,10 @@ an actual preference editor after validation rejects its first submission. Its h
 **debug-only**, not part of the signed stable release. No tests use the user's TV
 or alter its data. Do not deploy a failing or unfinished integration build.
 
-## Validation record and remaining device checks
+## Validation and deployment record
 
-Accepted code: `e2b6d9aa4f3e12d286604619aefffc7f14228956`.
-[Run `39159294452`](https://github.com/gogamid/cloudstream/actions/runs/39159294452)
+Installed build: `1fde408a849a2e9aae6584dcc9f900823aed91c4`.
+[Run `39160910285`](https://github.com/gogamid/cloudstream/actions/runs/39160910285)
 passed the complete gate:
 
 - **152 app tests + 543 library tests = 695**, zero failures/errors/skips.
@@ -96,13 +104,16 @@ Compose dismissal. The immediate latch fix is validated by retaining that same
 strict assertion. The retry test uses Compose's UI driver; the separate physical
 focus/IME tests retain the actual Android frame clock.
 
-Saved reports and APK: `~/downloads/cs-integration-39159294452/`.
-Stable APK SHA256:
-`b0e1320f54ddb285c42f1c167c8578564efa7f481c3f68a5c77150675f17a385`.
+Saved reports and APK: `~/downloads/cs-integration-39160910285/`.
+Stable APK SHA256 (also verified on the TV):
+`8a47d76aac4c5bb0dce4b1e6301bad258efe4861e4bd4d06ed648d5ccb787088`.
+Package: `com.lagradost.cloudstream3`; in-place update succeeded and retained app data.
+Startup diagnostics: `$TMPDIR/cs-integration-installed-39160910285.txt`.
 
 Require a completely green [latest branch workflow](https://github.com/gogamid/cloudstream/actions/workflows/fork-apk.yml?query=branch%3Afeature%2Fupstream-integration)
 for the current code before deployment. No result on an earlier commit validates
-subsequent code changes. Android emulator checks do not establish physical-TV
-remote/IME behavior, live-provider availability, no-rebuffer playback on the TV,
-codec/WebView stability or stress/memory behavior. Those remain real-device
-checks; the user's TV has not been updated by this integration work.
+subsequent code changes. The user's positive TV acceptance completes this
+integration, but does not independently verify every live provider, subtitle
+no-rebuffer scenario, codec/WebView path or long-duration memory stress case.
+Feature-specific investigations in `docs/playback-todo.md` retain their own
+verification status unless explicitly confirmed.
