@@ -7,15 +7,21 @@ internal class PlaybackIntent {
     var token: Long = 0L
         private set
 
+    private var hasLoaded = false
+
     fun beginLoad(autoPlay: Boolean?, backendIntent: Boolean? = null,
                   startPaused: Boolean = false, sameEpisode: Boolean = false) {
         token += 1
+        // A chooser may mark the very first manual source as sameEpisode. Its
+        // default false intent is not a user pause or an existing backend load.
+        val replacement = sameEpisode && hasLoaded
         value = when {
-            startPaused && !sameEpisode -> false
-            // A source replacement must not undo a user's intentional pause.
-            sameEpisode && backendIntent == false -> false
+            startPaused && !replacement -> false
+            // A real source replacement must not undo an intentional pause.
+            replacement && backendIntent == false -> false
             else -> autoPlay ?: backendIntent ?: value
         }
+        hasLoaded = true
     }
 
     fun request(play: Boolean) { value = play }

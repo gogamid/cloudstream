@@ -26,8 +26,21 @@ class UpstreamIntegrationTest {
 
     @Test fun `source fallback must not undo a deliberate pause`() {
         val intent = PlaybackIntent()
+        intent.beginLoad(true, true)
         intent.request(false)
         intent.beginLoad(true, false, startPaused = false, sameEpisode = true)
+        assertFalse(intent.value)
+    }
+
+    @Test fun `first manual source is not mistaken for a paused source replacement`() {
+        val intent = PlaybackIntent()
+        intent.beginLoad(true, false, startPaused = false, sameEpisode = true)
+        assertTrue(intent.value)
+    }
+
+    @Test fun `first manual source still honors start paused despite same episode flag`() {
+        val intent = PlaybackIntent()
+        intent.beginLoad(true, false, startPaused = true, sameEpisode = true)
         assertFalse(intent.value)
     }
 

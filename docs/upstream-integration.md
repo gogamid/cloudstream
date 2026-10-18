@@ -1,7 +1,8 @@
 # Full upstream integration (work in progress)
 
 Branch: `feature/upstream-integration`, based on upstream `master` `4c4c679`.
-Merged fork maintenance `c2c4841`; no changes are pushed to upstream.
+Merged fork maintenance `c2c4841`, then refreshed upstream to `eb962b4`
+(the newer +10 seek-button fix); no changes are pushed to upstream.
 The TV remains on the validated maintenance build while this branch is validated.
 
 ## Integration decisions
@@ -22,7 +23,9 @@ The TV remains on the validated maintenance build while this branch is validated
   helper; do not restore token logging in Hexload.
 - Start-paused applies at a fresh episode boundary, not every backend reload.
   Source replacement preserves intentional pause or a subsequent manual Play.
-  Actual backend playback still governs the automatic-source startup timer.
+  A first manual chooser selection marked `sameEpisode` is still an initial load,
+  not a paused replacement; it autoplays unless start-paused is enabled. Actual
+  backend playback still governs the automatic-source startup timer.
 - Compose editors use TV-only read-only focus to avoid implicit IME sessions;
   OK enables editing, horizontal arrows retain caret handling and vertical arrows
   move focus. Phone keyboard options remain unchanged. Focus ownership is cleared
@@ -52,7 +55,7 @@ The TV remains on the validated maintenance build while this branch is validated
 ## Validation gate
 
 Run the entire app unit suite (including the existing 130 fork regressions and
-upstream subtitle-language tests), twelve new boundary tests, and the full library
+upstream subtitle-language tests), fourteen new boundary tests, and the full library
 JVM suite including upstream's loopback HTTP HLS-download fixtures. Reuse those
 HLS fixtures instead of retaining redundant app-side copies. Compile shared JVM
 code as well as Android code. Lint, debug APK, stable release APK and permanent
