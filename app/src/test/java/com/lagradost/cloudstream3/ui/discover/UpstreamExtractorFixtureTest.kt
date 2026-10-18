@@ -18,8 +18,6 @@ import com.lagradost.cloudstream3.ui.result.VideoWatchState
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.M3u8Helper
-import com.lagradost.cloudstream3.utils.M3u8Helper2
 import com.lagradost.cloudstream3.utils.videoskip.SkipStamp
 import com.lagradost.cloudstream3.utils.videoskip.SkipType
 import com.lagradost.cloudstream3.utils.videoskip.TheIntroDBSkip
@@ -148,60 +146,6 @@ class UpstreamExtractorFixtureTest {
             val form = calls.last().body as FormBody
             val arguments = (0 until form.size).associate { form.name(it) to form.value(it) }
             assertEquals(mapOf("op" to "download2", "id" to "fixture", "token" to "opaque_token"), arguments)
-            assertEquals(2, calls.size)
-        }
-    }
-
-    @Test fun `HLS downloads resolve root parent and scheme relative segment entries`() {
-        val playlist = """
-            #EXTM3U
-            #EXT-X-TARGETDURATION:6
-            #EXTINF:6,
-            /media/root.ts
-            #EXTINF:6,
-            ../parent.ts?token=fixture
-            #EXTINF:6,
-            //edge.example/cdn.ts
-            #EXT-X-ENDLIST
-        """.trimIndent()
-        withRequests(respond = { request ->
-            if (request.url.encodedPath == "/show/season/list.m3u8") playlist else unexpected(request)
-        }) { calls ->
-            val data = M3u8Helper2.hslLazy(
-                M3u8Helper.M3u8Stream("https://cdn.example/show/season/list.m3u8?session=fixture"),
-                requireAudio = false,
-            )
-            assertEquals(listOf("https://cdn.example/media/root.ts", "https://cdn.example/show/parent.ts?token=fixture",
-                "https://edge.example/cdn.ts"), data.allTsLinks.map { it.url })
-            assertFalse(data.isEncrypted)
-            assertEquals(1, calls.size)
-        }
-    }
-
-    @Test fun `HLS key URL resolution preserves authentication headers`() {
-        val playlist = """
-            #EXTM3U
-            #EXT-X-TARGETDURATION:6
-            #EXT-X-KEY:METHOD=AES-128,URI="../../keys/key",IV=0x00000000000000000000000000000001
-            #EXTINF:6,
-            segment.ts
-            #EXT-X-ENDLIST
-        """.trimIndent()
-        withRequests(respond = { request ->
-            when (request.url.encodedPath) {
-                "/show/season/list.m3u8" -> playlist
-                "/keys/key" -> "0123456789abcdef"
-                else -> unexpected(request)
-            }
-        }) { calls ->
-            val data = M3u8Helper2.hslLazy(
-                M3u8Helper.M3u8Stream("https://cdn.example/show/season/list.m3u8", headers = mapOf("X-Fixture" to "auth")),
-                requireAudio = false,
-            )
-            assertTrue(data.isEncrypted)
-            assertEquals("0123456789abcdef", data.encryptionData.decodeToString())
-            assertEquals("https://cdn.example/keys/key", calls.last().url.toString())
-            assertTrue(calls.all { it.header("X-Fixture") == "auth" })
             assertEquals(2, calls.size)
         }
     }

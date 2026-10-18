@@ -41,13 +41,12 @@ jobs:
             -storepass:env FORK_STABLE_STORE_PASSWORD -alias fork-stable
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
-      - name: Test filmography and discovery, lint, and build APK
+      - name: Test app and library regressions, lint, and build signed APKs
         run: |
           chmod +x gradlew
-          ./gradlew :app:testPrereleaseDebugUnitTest \
-            --tests 'com.lagradost.cloudstream3.ui.result.ActorFilmographyRepositoryTest' \
-            --tests 'com.lagradost.cloudstream3.ui.discover.*' \
-            :app:lintPrereleaseDebug :app:assemblePrereleaseDebug :app:assembleStableRelease
+          ./gradlew :app:testPrereleaseDebugUnitTest :library:jvmTest :shared:compileKotlinJvm \
+            :app:lintPrereleaseDebug :app:assemblePrereleaseDebug :app:assembleStableRelease \
+            :app:assemblePrereleaseDebugAndroidTest
       - name: Verify stable signing certificate
         run: |
           set -euo pipefail
@@ -59,6 +58,12 @@ jobs:
         with:
           name: cloudstream-discover-apk
           path: app/build/outputs/apk/prerelease/debug/*.apk
+      - name: Upload emulator test APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: cloudstream-input-test-apk
+          path: app/build/outputs/apk/androidTest/prerelease/debug/*.apk
+          if-no-files-found: error
       - name: Upload stable APK (most performant, alongside beta)
         uses: actions/upload-artifact@v7
         with:
@@ -75,5 +80,52 @@ jobs:
             app/build/reports/tests/testPrereleaseDebugUnitTest/
             app/build/test-results/testPrereleaseDebugUnitTest/
             app/build/reports/lint-results-prereleaseDebug.*
+            library/build/reports/tests/jvmTest/
+            library/build/test-results/jvmTest/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  compose-input-smoke:
+    if: github.repository == 'gogamid/cloudstream'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: cloudstream-discover-apk
+          path: emulator-app
+      - uses: actions/download-artifact@v5
+        with:
+          name: cloudstream-input-test-apk
+          path: emulator-tests
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test real Compose focus, IME and Apply windows on Android 12
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          target: google_apis
+          profile: Nexus 6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048
+          script: |
+            adb shell settings put secure show_ime_with_hard_keyboard 1
+            adb install -r emulator-app/*.apk
+            adb install -r emulator-tests/*.apk
+            adb logcat -c
+            adb shell am instrument -w -r -e class com.lagradost.cloudstream3.ForkComposeInputTest com.lagradost.cloudstream3.prerelease.test/androidx.test.runner.AndroidJUnitRunner | tee compose-input-results.txt
+            adb logcat -d > compose-input-logcat.txt
+            grep -q 'OK (5 tests)' compose-input-results.txt
+      - name: Upload emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: compose-input-smoke-reports
+          path: compose-input-*.txt
           if-no-files-found: ignore
           retention-days: 14

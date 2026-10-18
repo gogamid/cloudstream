@@ -48,11 +48,21 @@ The TV remains on the validated maintenance build while this branch is validated
 
 ## Validation gate
 
-All existing 130 discovery/filmography and playback-policy/HTTP-fixture tests
-remain selected, with additional upstream/fork boundary tests and HLS-download
-HTTP fixtures. Lint, debug APK, stable release APK and permanent certificate
-verification remain required. Tests intercept HTTP instead of claiming live
-extractor availability. Do not deploy a failing or unfinished integration build.
+Run the entire app unit suite (including the existing 130 fork regressions and
+upstream subtitle-language tests), ten new boundary tests, and the full library
+JVM suite including upstream's loopback HTTP HLS-download fixtures. Reuse those
+HLS fixtures instead of retaining redundant app-side copies. Compile shared JVM
+code as well as Android code. Lint, debug APK, stable release APK and permanent
+certificate verification remain required. Extractor fixtures intercept HTTP;
+HLS fixtures use localhost, not live hosts.
+
+A separate Android 12 emulator gate runs five instrumentation tests against the
+real Compose editor/IME and dialog-window implementations. It checks TV focus
+without automatic keyboard opening, explicit OK, vertical escape/disposal,
+unchanged phone keyboard activation, Apply key-up/repeat/cancel handling before
+child focus, disabled Apply and exclusion of generic Login buttons. Its host is
+**debug-only**, not part of the signed stable release. No tests use the user's TV
+or alter its data. Do not deploy a failing or unfinished integration build.
 
 Pending: CI results and a real UI/device pass. Unit/fixture tests and a successful
 signed build alone do **not** establish TV D-pad/IME behavior, no-rebuffer subtitle
