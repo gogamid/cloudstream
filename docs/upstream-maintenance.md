@@ -6,8 +6,10 @@ Reviewed upstream: `4c4c679` from `recloudstream/cloudstream:master`.
 ## Included
 
 - `81dbdf4` / #3183: cache the language-name, BCP-47 and flag regexes in
-  `SubtitleHelper`. Preserve existing matching rules; do not import the Compose
-  subtitle-settings screen.
+  `SubtitleHelper`. Preserve matching rules; do not import the Compose
+  subtitle-settings screen. The new tests also caught an existing BCP-47 bug:
+  literal newlines in its formatted regex rejected even `en`. Join the lines
+  before compiling the cached pattern, so normal and regional tags validate.
 - `d9c55e2` / #3252: tolerate `SecurityException` when a SAF folder provider
   grants temporary but not persistable access. Continue delivering the selected
   URI. The narrow guard is extracted for tests; unrelated errors are not masked.

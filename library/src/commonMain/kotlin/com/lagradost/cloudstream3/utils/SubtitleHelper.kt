@@ -235,6 +235,7 @@ object SubtitleHelper {
 
     // Written by Addison Phillips, <Addison at amazon.com>
     // https://www.langtag.net/philips-regexp.html
+    // Join formatted lines: literal newlines would reject ordinary tags such as "en".
     private val langTagRegex = """
             +(^[xX](\x2d\p{Alnum}{1,8})*$)
             +|(((^\p{Alpha}{2,8}(?=\x2d|$)){1}
@@ -244,7 +245,7 @@ object SubtitleHelper {
             +(\x2d(\d\p{Alnum}{3}|\p{Alnum}{5,8})(?=\x2d|$))*)
             +((\x2d([a-wyzA-WYZ](?=\x2d))(\x2d(\p{Alnum}{2,8})+)*))*
             +(\x2d[xX](\x2d\p{Alnum}{1,8})*)?)$
-            """.trimMargin("+").toRegex()
+            """.trimMargin("+").lineSequence().joinToString("").toRegex()
     private val countryRegex = Regex("[-_](\\p{Alnum}{2,3})$", RegexOption.IGNORE_CASE)
     private val unicodeFlagRegex = Regex("[\uD83C\uDDE6-\uD83C\uDDFF]{2}")
 
