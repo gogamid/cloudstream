@@ -182,6 +182,7 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     private var currentSelectedLink: Pair<ExtractorLink?, ExtractorUri?>? = null
     private var currentSelectedSubtitles: SubtitleData? = null
+    private val subtitleToggle = SubtitleToggleSelection()
     private val currentMeta: Any? get() = viewModel.state.generatorState?.meta
     private val nextMeta: Any? get() = viewModel.state.generatorState?.nextMeta
 
@@ -225,14 +226,15 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     private fun setSubtitles(subtitle: SubtitleData?, userInitiated: Boolean): Boolean {
+        subtitleToggle.remember(player.getCurrentPreferredSubtitle())
+        subtitleToggle.remember(subtitle)
         if (userInitiated) seriesPreferenceKey()?.let { key ->
-            setKey(key, seriesPreferences().copy(
-                subtitle = subtitle?.let(SeriesSourcePreferences.Subtitle::from),
-                subtitlesOff = subtitle == null
+            setKey(key, seriesPreferences().withSubtitleSelection(
+                subtitle?.let(SeriesSourcePreferences.Subtitle::from)
             ))
         }
-        // If subtitle is changed and user initiated -> Save the language
-        if (subtitle != currentSelectedSubtitles && userInitiated) {
+        // Explicit Off also matters before a first auto-selected track arrives.
+        if (userInitiated) {
             val subtitleLanguageTagIETF = if (subtitle == null) {
                 "" // -> No Subtitles
             } else {
@@ -296,6 +298,32 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
         android.widget.Toast.makeText(ctx, ctx.getString(R.string.remote_subtitle_selected, subtitle.name.trim()),
             android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    override fun toggleSubtitles() {
+        val ctx = context ?: return
+        if (!isAdded || view == null || sourceSessionInstance != viewModel.state.instance ||
+            !viewLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) || isDialogOpen()) return
+        // The backend includes pending selections and rolls back failures. The
+        // fragment's cached menu choice can be stale after an automatic failure.
+        val current = player.getCurrentPreferredSubtitle()
+        val embeddedIds = player.getVideoTracks().allTextTracks.mapNotNull { it.id }.toSet()
+        val available = subtitleToggle.available(sortSubs(viewModel.state.subtitles), embeddedIds)
+        val preferred = preferredSeriesSubtitle(viewModel.state.subtitles)
+            ?: getAutoSelectSubtitle(viewModel.state.subtitles, settings = true, downloads = true)
+        val target = subtitleToggle.target(current, available, preferred)
+        if (current == null && target == null) {
+            android.widget.Toast.makeText(ctx, R.string.remote_no_subtitles, android.widget.Toast.LENGTH_SHORT).show()
+            return // No search, preference changes or video reload on a miss.
+        }
+        player.setActiveSubtitles(viewModel.state.subtitles)
+        if (setSubtitles(target, true)) {
+            player.saveData()
+            player.reloadPlayer(ctx) // Only for a backend requiring reload; CS3 returns false.
+        }
+        val message = target?.let { ctx.getString(R.string.remote_subtitle_selected, it.name.trim()) }
+            ?: ctx.getString(R.string.remote_subtitles_off)
+        android.widget.Toast.makeText(ctx, message, android.widget.Toast.LENGTH_SHORT).show()
     }
 
     override fun selectNextVideoSource() {
@@ -646,6 +674,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     private fun prepareSourceSession() {
         if (sourceSessionInstance == viewModel.state.instance) return
         sourceSessionInstance = viewModel.state.instance
+        subtitleToggle.clear()
         sourceCollectionStartedAt = SystemClock.elapsedRealtime()
         loggedFirstSources = false
         cachedSortedSourceLinks = null

@@ -45,6 +45,15 @@ class RemoteButtonMappingsTest {
         assertNull(RemoteButtonMappings.decode(emptySet())[KeyEvent.KEYCODE_5])
     }
 
+    @Test fun `subtitle toggle uses a stable action name without replacing other bindings`() {
+        val decoded = RemoteButtonMappings.decode(setOf(
+            "${KeyEvent.KEYCODE_6}:TOGGLE_SUBTITLES", "${KeyEvent.KEYCODE_5}:NEXT_SOURCE"
+        ))
+        assertEquals(Action.TOGGLE_SUBTITLES, decoded[KeyEvent.KEYCODE_6])
+        assertEquals(Action.NEXT_SOURCE, decoded[KeyEvent.KEYCODE_5])
+        assertTrue(RemoteButtonMappings.decode(emptySet()).isEmpty())
+    }
+
     @Test fun `mappings remain eligible for settings backups`() {
         assertTrue(RemoteButtonMappings.KEY.isTransferable())
     }

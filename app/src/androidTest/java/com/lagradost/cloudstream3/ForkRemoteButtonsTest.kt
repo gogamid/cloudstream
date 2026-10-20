@@ -58,6 +58,14 @@ class ForkRemoteButtonsTest {
                 item(context.getString(R.string.remote_next_source)).perform(click())
                 assertEquals(RemoteButtonMappings.Action.NEXT_SOURCE, RemoteButtonMappings.load(context)[key])
 
+                item(context.getString(R.string.remote_add)).perform(click())
+                onView(withText(R.string.remote_press_button)).inRoot(isDialog()).check(matches(isDisplayed()))
+                InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_6)
+                item(context.getString(R.string.remote_toggle_subtitles)).perform(click())
+                assertEquals(RemoteButtonMappings.Action.TOGGLE_SUBTITLES,
+                    RemoteButtonMappings.load(context)[KeyEvent.KEYCODE_6])
+                assertEquals(RemoteButtonMappings.Action.NEXT_SOURCE, RemoteButtonMappings.load(context)[key])
+
                 item(applyRow(apply)).perform(click())
                 item(context.getString(R.string.remote_disabled)).perform(click())
                 assertNull(DialogApplyShortcut.load(context))

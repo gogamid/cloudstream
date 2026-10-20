@@ -23,6 +23,9 @@
     <string name="remote_episodes">Episode list</string>
     <string name="remote_subtitle_search">Online subtitle search</string>
     <string name="remote_subtitle_timing">Subtitle timing</string>
+    <string name="remote_toggle_subtitles">Toggle subtitles on/off</string>
+    <string name="remote_subtitles_off">Subtitles off</string>
+    <string name="remote_no_subtitles">No subtitles are available for this video.</string>
     <string name="remote_sources">Sources / subtitles</string>
     <string name="remote_next_source">Next video source</string>
     <string name="remote_source_missing">No other video source is currently available.</string>

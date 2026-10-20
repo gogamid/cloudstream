@@ -112,15 +112,21 @@ jobs:
           target: google_apis
           profile: Nexus 6
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 4096
           script: |
             adb shell settings put secure show_ime_with_hard_keyboard 1
             adb install -r emulator-app/*.apk
             adb install -r emulator-tests/*.apk
+            adb shell input keyevent KEYCODE_WAKEUP
+            adb shell wm dismiss-keyguard
+            # The previous docs-only run was blocked by a Nexus Launcher ANR
+            # stealing every test's input. The fixture never uses the launcher.
+            adb shell am force-stop com.google.android.apps.nexuslauncher
             adb logcat -c
             adb shell pm list instrumentation | tee compose-input-instrumentation.txt
             adb shell am instrument -w -r -e class com.lagradost.cloudstream3.ForkComposeInputTest,com.lagradost.cloudstream3.ForkComposePreferenceRetryTest,com.lagradost.cloudstream3.ForkRemoteButtonsTest "$(adb shell pm list instrumentation | tr -d '\r' | awk '/^instrumentation:com.lagradost.cloudstream3/ { sub(/^instrumentation:/, "", $1); print $1; exit }')" | tee compose-input-results.txt
             adb logcat -d > compose-input-logcat.txt
+            adb shell dumpsys window windows > compose-input-windows.txt
             grep -q 'OK (7 tests)' compose-input-results.txt
       - name: Upload emulator diagnostics
         if: always()

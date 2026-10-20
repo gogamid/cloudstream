@@ -11,6 +11,12 @@ internal data class SeriesSourcePreferences(
     // Automatic success is a hint, never a replacement for the manual choice.
     val lastWorkingVideo: Video? = null,
 ) {
+    /** Off is a separate explicit choice, not a reason to forget the last track. */
+    fun withSubtitleSelection(selected: Subtitle?) = copy(
+        subtitle = selected ?: subtitle,
+        subtitlesOff = selected == null,
+    )
+
     @Serializable
     data class Video(val source: String, val name: String, val quality: Int, val type: String,
                      val host: String? = null) {

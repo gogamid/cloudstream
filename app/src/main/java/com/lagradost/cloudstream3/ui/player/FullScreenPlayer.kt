@@ -1307,6 +1307,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     }
 
     protected open fun selectSubtitleLanguage(language: String) = Unit
+    protected open fun toggleSubtitles() = Unit
     protected open fun selectNextVideoSource() = Unit
 
     private fun runRemoteAction(action: RemoteButtonMappings.Action) {
@@ -1338,6 +1339,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 else android.widget.Toast.makeText(ctx, R.string.remote_unavailable, android.widget.Toast.LENGTH_SHORT).show()
             }
             RemoteButtonMappings.Action.SUBTITLE_TIMING -> showSubtitleOffsetDialog()
+            RemoteButtonMappings.Action.TOGGLE_SUBTITLES -> toggleSubtitles()
             RemoteButtonMappings.Action.RUSSIAN_SUBTITLES -> selectSubtitleLanguage("ru")
             RemoteButtonMappings.Action.ENGLISH_SUBTITLES -> selectSubtitleLanguage("en")
             RemoteButtonMappings.Action.SOURCES -> showMirrorsDialogue()
