@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap
 internal class ExternalSubtitleController(
     private val positionMs: () -> Long?,
     private val render: (List<Cue>) -> Unit,
-    private val failed: (SubtitleData, Throwable) -> Unit,
+    private val failed: (SubtitleData, Throwable, Boolean) -> Unit,
     private val loaded: () -> Unit,
 ) {
     private data class Parsed(val track: SubtitleData, val bytes: ByteArray,
@@ -39,6 +39,7 @@ internal class ExternalSubtitleController(
     private val cache = ExternalSubtitleCache<Parsed>()
     private val failedIds = mutableSetOf<String>()
     private var job: Job? = null
+    private var notifyFailure = false
     private val loadingSources = ConcurrentHashMap<Long, DataSource>()
 
     private fun cancelLoad() {
@@ -95,7 +96,13 @@ internal class ExternalSubtitleController(
     fun select(track: SubtitleData, factory: DataSource.Factory, retry: Boolean = false): Boolean {
         if (retry) failedIds.remove(track.getId())
         if (track.getId() in failedIds) return false
-        if (currentTrack?.getId() == track.getId() && session.requestedId == track.getId()) return true
+        if (currentTrack?.getId() == track.getId() && session.requestedId == track.getId()) {
+            // An automatic first-render callback must not silence a pending
+            // explicit choice, nor should an explicit retry duplicate its read.
+            notifyFailure = notifyFailure || retry
+            return true
+        }
+        notifyFailure = retry
         currentTrack = track
         val token = session.request(track.getId())
         cancelLoad()
@@ -128,6 +135,7 @@ internal class ExternalSubtitleController(
         val parsed = active ?: return
         if (currentTrack?.getId() != parsed.track.getId()) return
         val token = session.request(parsed.track.getId())
+        notifyFailure = true
         cancelLoad()
         cache.clear()
         launchLoad(parsed.track, token) { parsed.bytes }
@@ -164,7 +172,7 @@ internal class ExternalSubtitleController(
                 if (session.fail(token)) {
                     failedIds.add(track.getId())
                     currentTrack = active?.track
-                    failed(track, error)
+                    failed(track, error, notifyFailure)
                 }
             }
         }
@@ -177,6 +185,7 @@ internal class ExternalSubtitleController(
         handler.removeCallbacks(ticker)
         active = null
         currentTrack = null
+        notifyFailure = false
         lastEventIndex = null
         if (clearCache) { cache.clear(); failedIds.clear() }
         render(emptyList())

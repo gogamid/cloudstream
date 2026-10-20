@@ -184,10 +184,11 @@ class CS3IPlayer : IPlayer {
     private val subtitleHelper = PlayerSubtitleHelper()
     private var subtitleContext: Context? = null
     private var externalFallbackSubtitle: SubtitleData? = null
+    private val subtitleStartup = SubtitleStartupGate<SubtitleData> { it.getId() }
     private val externalSubtitles = ExternalSubtitleController(
         positionMs = { exoPlayer?.currentPosition },
         render = { renderSubtitleCues(it) },
-        failed = { _, error -> onExternalSubtitleFailure(error) },
+        failed = { _, error, notify -> onExternalSubtitleFailure(error, notify) },
         loaded = { event(SubtitlesUpdatedEvent()) }
     )
 
@@ -195,13 +196,15 @@ class CS3IPlayer : IPlayer {
         subtitleHelper.subtitleView?.setCues(SubtitleCueStyling.apply(cues, CustomDecoder.style))
     }
 
-    private fun onExternalSubtitleFailure(error: Throwable) {
+    private fun onExternalSubtitleFailure(error: Throwable, notify: Boolean) {
         logError(error)
         val fallback = externalSubtitles.currentTrack ?: externalFallbackSubtitle
         currentSubtitles = fallback
         if (fallback?.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO) setPreferredSubtitles(fallback)
         else if (fallback == null) externalSubtitles.stop()
-        showToast(R.string.external_subtitle_load_failed, Toast.LENGTH_LONG)
+        // Automatic discovery must not flood startup with popups. Explicit
+        // selections/retries still report failure; both paths keep video intact.
+        if (notify) showToast(R.string.external_subtitle_load_failed, Toast.LENGTH_LONG)
         event(SubtitlesUpdatedEvent())
     }
 
@@ -580,6 +583,14 @@ class CS3IPlayer : IPlayer {
             externalFallbackSubtitle = currentSubtitles
         }
         currentSubtitles = subtitle
+        val request = if (subtitle != null && subtitle.origin != SubtitleOrigin.EMBEDDED_IN_VIDEO) {
+            // Includes the initial selection made immediately after prepare().
+            // Do not create a DataSource, fetch or decode until this video is READY.
+            subtitleStartup.request(subtitle, userInitiated) ?: return false
+        } else {
+            subtitleStartup.cancelPending() // Off/embedded must cancel queued text.
+            null
+        }
         val trackSelector = exoPlayer?.trackSelector as? DefaultTrackSelector ?: return false
         // Disable subtitles if null
         if (subtitle == null) {
@@ -619,7 +630,7 @@ class CS3IPlayer : IPlayer {
                 val interceptor = currentLink?.let { getApiFromNameNull(it.source)?.getVideoInterceptor(it) }
                 createOnlineSource(subtitle.headers, interceptor)
             }
-            if (!externalSubtitles.select(subtitle, factory, retry = userInitiated)) {
+            if (!externalSubtitles.select(subtitle, factory, retry = request?.userInitiated == true)) {
                 currentSubtitles = externalSubtitles.currentTrack ?: externalFallbackSubtitle
                 if (currentSubtitles?.origin == SubtitleOrigin.EMBEDDED_IN_VIDEO) {
                     setPreferredSubtitles(currentSubtitles)
@@ -627,7 +638,7 @@ class CS3IPlayer : IPlayer {
             }
             externalSubtitles.setOffset(currentSubtitleOffset)
         } catch (error: Exception) {
-            onExternalSubtitleFailure(error)
+            onExternalSubtitleFailure(error, request?.userInitiated == true)
         }
         event(SubtitlesUpdatedEvent())
         return false
@@ -694,6 +705,7 @@ class CS3IPlayer : IPlayer {
     private fun releasePlayer(saveTime: Boolean = true) {
         playbackOperations.advance()
         playbackIntent.detachPlayer()
+        subtitleStartup.reset()
         externalSubtitles.stop(clearCache = true)
         externalFallbackSubtitle = null
         hasActuallyPlayed = false
@@ -1523,6 +1535,7 @@ class CS3IPlayer : IPlayer {
             LiveHelper.registerPlayer(exoPlayer)
 
             val intentToken = playbackIntent.token
+            val subtitleStartupToken = subtitleStartup.token
             exoPlayer?.addListener(object : Player.Listener {
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                     playbackIntent.observeBackend(intentToken, playWhenReady)
@@ -1681,7 +1694,9 @@ class CS3IPlayer : IPlayer {
                     super.onPlaybackStateChanged(playbackState)
                     when (playbackState) {
                         Player.STATE_READY -> {
-
+                            subtitleStartup.videoReady(subtitleStartupToken)?.let {
+                                setPreferredSubtitles(it.value, it.userInitiated)
+                            }
                         }
 
                         Player.STATE_ENDED -> {

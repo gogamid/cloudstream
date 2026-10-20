@@ -6,6 +6,8 @@ import androidx.preference.PreferenceManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onData
 import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.Espresso.pressBack
+import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
@@ -40,31 +42,36 @@ class ForkRemoteButtonsTest {
             ActivityScenario.launch<ForkComposeInputTestActivity>(
                 Intent(context, ForkComposeInputTestActivity::class.java).putExtra("mode", "remote")
             ).use {
-                onView(withText(applyRow(apply))).check(matches(isDisplayed()))
-                onData(equalTo(row(RemoteButtonMappings.Action.SKIP_CHAPTER))).perform(click())
-                onData(equalTo(context.getString(R.string.remote_next_source))).perform(click())
+                // Dialog replacement on key-up briefly leaves only the activity
+                // root registered. Never let Espresso pin that unfocused root.
+                fun item(text: String) = onData(equalTo(text)).inRoot(isDialog())
+                onView(withText(applyRow(apply))).inRoot(isDialog()).check(matches(isDisplayed()))
+                item(row(RemoteButtonMappings.Action.SKIP_CHAPTER)).perform(click())
+                item(context.getString(R.string.remote_next_source)).perform(click())
                 assertEquals(RemoteButtonMappings.Action.NEXT_SOURCE, RemoteButtonMappings.load(context)[key])
                 assertEquals(apply, DialogApplyShortcut.load(context))
-                onView(withText(row(RemoteButtonMappings.Action.NEXT_SOURCE))).check(matches(isDisplayed()))
+                onView(withText(row(RemoteButtonMappings.Action.NEXT_SOURCE))).inRoot(isDialog()).check(matches(isDisplayed()))
 
-                onData(equalTo(context.getString(R.string.remote_add))).perform(click())
-                onView(withText(R.string.remote_press_button)).check(matches(isDisplayed()))
+                item(context.getString(R.string.remote_add)).perform(click())
+                onView(withText(R.string.remote_press_button)).inRoot(isDialog()).check(matches(isDisplayed()))
                 InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(key)
-                onData(equalTo(context.getString(R.string.remote_next_source))).perform(click())
+                item(context.getString(R.string.remote_next_source)).perform(click())
                 assertEquals(RemoteButtonMappings.Action.NEXT_SOURCE, RemoteButtonMappings.load(context)[key])
 
-                onData(equalTo(applyRow(apply))).perform(click())
-                onData(equalTo(context.getString(R.string.remote_disabled))).perform(click())
+                item(applyRow(apply)).perform(click())
+                item(context.getString(R.string.remote_disabled)).perform(click())
                 assertNull(DialogApplyShortcut.load(context))
                 assertEquals(RemoteButtonMappings.Action.NEXT_SOURCE, RemoteButtonMappings.load(context)[key])
-                onView(withText(applyRow(null))).check(matches(isDisplayed()))
+                onView(withText(applyRow(null))).inRoot(isDialog()).check(matches(isDisplayed()))
 
                 // Reset retains its original playback-only scope, now made explicit in the label.
                 DialogApplyShortcut.save(context, apply)
-                onData(equalTo(context.getString(R.string.remote_reset))).perform(click())
-                onView(withId(android.R.id.button1)).perform(click())
+                item(context.getString(R.string.remote_reset)).perform(click())
+                onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click())
                 assertTrue(RemoteButtonMappings.load(context).isEmpty())
                 assertEquals(apply, DialogApplyShortcut.load(context))
+                onView(withText(applyRow(apply))).inRoot(isDialog()).check(matches(isDisplayed()))
+                pressBack()
             }
         } finally {
             val editor = prefs.edit()
