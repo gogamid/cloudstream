@@ -63,7 +63,7 @@ Run `39163944750` built successfully but its seventh emulator test selected the
 unfocused activity root between key-capture and action dialogs. Restrict native
 queries to dialog roots; retain the actual key-up capture and all assertions.
 
-### Validated build, deployment blocked
+### Initial validated build; later combined build installed
 
 Run [39395323228](https://github.com/gogamid/cloudstream/actions/runs/39395323228)
 passed for code `d7b85653ac7d130f8e120ec647687b3fda7c593e`:
@@ -76,11 +76,12 @@ passed for code `d7b85653ac7d130f8e120ec647687b3fda7c593e`:
   `95ba441702529f8c648662a42b498753b51824743a6cc156608d3d4c6ecbc96a`.
 - Downloaded APK/reports: `~/downloads/cs-video-first-39395323228/`.
 
-User authorized installation. However, TCP connections and the TV connection
-helper timed out at `192.168.0.139:5555`. No installation or device changes were
-made. Install the above validated stable APK in place when ADB becomes reachable;
-retain app data/settings and verify the installed checksum/startup.
+Initial installation attempts were blocked by TV connection timeouts. The later
+combined build from run `39401600263` (also including the subtitle toggle) was
+subsequently installed in place after another explicit user request. Device APK
+checksum matched; startup process remained running and the crash buffer was empty.
+See `remote-subtitle-toggle.md` for the deployed artifact and verification record.
 
 A real provider/TV source cycle and subtitle-startup reproduction remain separate
 checks; pure tests do not prove provider availability, backend seek precision or
-rebuffer timing. This feature has not yet been deployed to the user's TV.
+rebuffer timing. Installation/startup checks do not establish those live scenarios.

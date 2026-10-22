@@ -36,7 +36,7 @@ emulator's RAM to 4 GiB, wake/unlock it and stop the unused launcher before test
 retain app ANR reporting, all assertions, and collect window diagnostics as well.
 This is emulator setup, not a modification to the user's TV.
 
-## Validated build — TV connection still blocked
+## Validated build — installed on TV
 
 Run [39401600263](https://github.com/gogamid/cloudstream/actions/runs/39401600263)
 passed for code `1b3ae9a1162afb53d83aeda60b2ddb87e5a59485`:
@@ -49,10 +49,12 @@ passed for code `1b3ae9a1162afb53d83aeda60b2ddb87e5a59485`:
   `8dd8c70c2fe5ed6bc546cd087499f40912d68e99a5ae0a88fa40dd96af7b91ae`.
 - APK/reports: `~/downloads/cs-subtitle-toggle-39401600263/`.
 
-The TV ADB port at `192.168.0.139:5555` still times out. No installation or device
-changes were made. This signed APK includes the earlier next-source and video-first
-subtitle changes as well as the new toggle; use an in-place update preserving data
-once the TV is reachable, then verify checksum/startup.
+After the user repeated “install”, the TV reconnected at `192.168.0.139:5555`.
+Installed this validated APK with `adb install --no-streaming -r`: **Success**.
+No uninstall or data clearing; existing settings/bindings retained. Device base.apk
+SHA256 exactly matches the above artifact. Launched the stable package and observed
+PID `10472` after 12 seconds; crash buffer was empty. This deployed build includes
+next-source cycling, grouped Apply, video-first external subtitles and the toggle.
 
 Real-provider playback behavior is not yet confirmed; selection-policy tests and
 mapping UI checks do not establish every provider, codec or subtitle format.
