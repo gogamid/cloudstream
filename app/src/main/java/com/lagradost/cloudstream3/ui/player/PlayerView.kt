@@ -763,9 +763,24 @@ class PlayerView @JvmOverloads constructor(
                 1 -> callbacks?.nextEpisode()
             }
             is StatusEvent -> {
-                updateIsPlaying(wasPlaying = event.wasPlaying, isPlaying = event.isPlaying)
+                val seeking = (player as? CS3IPlayer)?.isInteractiveSeeking() == true
+                // Keep the transport icon aligned with logical intent during a
+                // temporary scrub pause, not with the backend's forced pause.
+                val display = if (seeking) {
+                    if (player.getPlayWhenReady()) CSPlayerLoading.IsPlaying else CSPlayerLoading.IsPaused
+                } else event.isPlaying
+                updateIsPlaying(wasPlaying = if (seeking) currentPlayerStatus else event.wasPlaying, isPlaying = display)
                 scheduleAutoHide()
                 callbacks?.playerStatusChanged()
+            }
+            is SeekPreviewEvent -> {
+                val target = event.targetMs
+                val text = target?.let {
+                    val delta = it - event.fromMs
+                    val sign = if (delta < 0) "-" else if (delta > 0) "+" else ""
+                    "${DateUtils.formatElapsedTime(it / 1000)} [$sign${DateUtils.formatElapsedTime(kotlin.math.abs(delta) / 1000)}]"
+                }
+                callbacks?.onSeekPreviewText(text)
             }
             is PositionEvent -> callbacks?.playerPositionChanged(
                 position = event.toMs,

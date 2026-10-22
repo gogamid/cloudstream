@@ -59,6 +59,13 @@ data class PositionEvent(
     val seekMs : Long get() = toMs - fromMs
 }
 
+/** UI-only preview: never save a checkpoint, invoke chapters or preload episodes. */
+data class SeekPreviewEvent(
+    val targetMs: Long?,
+    val fromMs: Long = 0L,
+    override val source: PlayerEventSource = PlayerEventSource.UI,
+) : PlayerEvent()
+
 /** player error when rendering or misc, used to display toast or log */
 data class ErrorEvent(
     val error: Throwable,

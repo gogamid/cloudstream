@@ -1243,6 +1243,10 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             // play/pause. Only when the UI is hidden do we treat it as a play/pause toggle.
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER -> {
+                (player as? CS3IPlayer)?.takeIf { it.isInteractiveSeeking() }?.let {
+                    it.finishInteractiveSeek()
+                    return true
+                }
                 if (isShowing || isDialogOpen()) {
                     return null
                 }

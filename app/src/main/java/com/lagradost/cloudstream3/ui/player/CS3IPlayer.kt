@@ -136,7 +136,7 @@ const val toleranceBeforeUs = 300_000L
 const val toleranceAfterUs = 300_000L
 
 @OptIn(UnstableApi::class)
-class CS3IPlayer : IPlayer {
+class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : IPlayer {
     private var playerListener: Player.Listener? = null
     private var isPlaying = false
     private val playbackIntent = PlaybackIntent()
@@ -238,7 +238,12 @@ class CS3IPlayer : IPlayer {
     override fun getDuration(): Long? = exoPlayer?.duration
     override fun getPosition(): Long? = exoPlayer?.currentPosition
     override fun getIsPlaying(): Boolean = isPlaying
-    override fun getPlayWhenReady(): Boolean = exoPlayer?.playWhenReady ?: playbackIntent.value
+    override fun getPlayWhenReady(): Boolean =
+        if (seekBurst.isActive || seekBurst.isCommitting || seekBurst.isChangingPlayback) playbackIntent.value
+        else exoPlayer?.playWhenReady ?: playbackIntent.value
+
+    fun isInteractiveSeeking(): Boolean = seekBurst.isActive || seekBurst.isCommitting
+    fun finishInteractiveSeek() = seekBurst.finish()
 
     // Separate actual playback from the cached autoplay/resume intent above.
     private var hasActuallyPlayed = false
@@ -256,6 +261,37 @@ class CS3IPlayer : IPlayer {
     private var requestedListeningPercentages: List<Int>? = null
 
     private var eventHandler: ((PlayerEvent) -> Unit)? = null
+
+    private val seekHandler = Handler(Looper.getMainLooper())
+    private val seekBurst = SeekBurstController(
+        position = { exoPlayer?.currentPosition ?: 0L },
+        duration = { exoPlayer?.duration },
+        intent = { playbackIntent.value },
+        pause = { exoPlayer?.pause() },
+        seek = { target ->
+            val exo = exoPlayer
+            if (exo != null && isMediaSeekable) {
+                exo.seekTo(target)
+                if (exo === exoPlayer) updatedTime(source = PlayerEventSource.UI)
+            }
+        },
+        restore = { exoPlayer?.playWhenReady = it },
+        preview = { event(SeekPreviewEvent(it?.toMs, it?.fromMs ?: 0L)) },
+        schedule = { task, delay -> seekHandler.postDelayed(task, delay); Unit },
+        remove = { seekHandler.removeCallbacks(it) },
+        changed = { publishSeekStatus() },
+        failed = { logError(it) },
+    )
+
+    private fun publishSeekStatus() {
+        val exo = exoPlayer ?: return
+        val actual = when (exo.playbackState) {
+            Player.STATE_BUFFERING -> CSPlayerLoading.IsBuffering
+            Player.STATE_ENDED -> CSPlayerLoading.IsEnded
+            else -> if (exo.isPlaying) CSPlayerLoading.IsPlaying else CSPlayerLoading.IsPaused
+        }
+        event(StatusEvent(if (isPlaying) CSPlayerLoading.IsPlaying else CSPlayerLoading.IsPaused, actual))
+    }
 
     private val checkpointHandler = Handler(Looper.getMainLooper())
     private val checkpointRunnable = object : Runnable {
@@ -653,7 +689,7 @@ class CS3IPlayer : IPlayer {
         CustomDecoder.subtitleOffset = offset
         externalSubtitles.setOffset(offset)
         if (currentSubtitles?.origin != SubtitleOrigin.EMBEDDED_IN_VIDEO) return
-        if (changed) exoPlayer?.let { exo ->
+        if (changed && !isInteractiveSeeking()) exoPlayer?.let { exo ->
             if (exo.playbackState == Player.STATE_READY) {
                 // Let ExoPlayer flush/reset the subtitle pipeline on its playback
                 // thread, with correct renderer timeline offsets and time units.
@@ -704,6 +740,7 @@ class CS3IPlayer : IPlayer {
 
     private fun releasePlayer(saveTime: Boolean = true) {
         playbackOperations.advance()
+        seekBurst.cancel(restorePlayback = false)
         playbackIntent.detachPlayer()
         subtitleStartup.reset()
         externalSubtitles.stop(clearCache = true)
@@ -746,19 +783,19 @@ class CS3IPlayer : IPlayer {
     override fun onStop() {
         Log.i(TAG, "onStop")
 
-        saveData()
         if (!isAudioOnlyBackground) {
             handleEvent(CSPlayerEvent.Pause, PlayerEventSource.Player)
         }
+        saveData()
         //releasePlayer()
     }
 
     override fun onPause() {
         Log.i(TAG, "onPause")
-        saveData()
         if (!isAudioOnlyBackground) {
             handleEvent(CSPlayerEvent.Pause, PlayerEventSource.Player)
         }
+        saveData()
         //releasePlayer()
     }
 
@@ -1036,22 +1073,24 @@ class CS3IPlayer : IPlayer {
     }
 
     override fun seekTime(time: Long, source: PlayerEventSource) {
-        exoPlayer?.seekTime(time, source)
-    }
-
-    override fun seekTo(time: Long, source: PlayerEventSource) {
-        if (isMediaSeekable) {
-            updatedTime(time, source)
-            exoPlayer?.seekTo(time)
+        val exo = exoPlayer ?: return
+        if (!isMediaSeekable) return
+        // A subtitle flush is not a remote seek. A pending real seek will flush
+        // embedded text anyway; do not reset the decoder mid-preview for 1 ms.
+        if (isInteractiveSeeking() && time in -1L..1L) return
+        if (tvSeekEnabled() && source == PlayerEventSource.UI && (time < -1L || time > 1L)) {
+            seekBurst.add(time)
         } else {
-            Log.i(TAG, "Media is not seekable, we can not seek to $time")
+            seekTo(exo.currentPosition + time, source)
         }
     }
 
-    private fun ExoPlayer.seekTime(time: Long, source: PlayerEventSource) {
+    override fun seekTo(time: Long, source: PlayerEventSource) {
+        // An absolute scrub/chapter/restart supersedes a pending relative burst.
+        seekBurst.cancel()
         if (isMediaSeekable) {
-            updatedTime(currentPosition + time, source)
-            seekTo(currentPosition + time)
+            exoPlayer?.seekTo(time)
+            updatedTime(source = source)
         } else {
             Log.i(TAG, "Media is not seekable, we can not seek to $time")
         }
@@ -1059,12 +1098,17 @@ class CS3IPlayer : IPlayer {
 
     override fun handleEvent(event: CSPlayerEvent, source: PlayerEventSource) {
         Log.i(TAG, "handleEvent ${event.name}")
+        if (event == CSPlayerEvent.PlayPauseToggle) {
+            handleEvent(if (getPlayWhenReady()) CSPlayerEvent.Pause else CSPlayerEvent.Play, source)
+            return
+        }
         when (event) {
             CSPlayerEvent.Play -> playbackIntent.request(true)
             CSPlayerEvent.Pause -> playbackIntent.request(false)
             else -> Unit
         }
         try {
+            if (event == CSPlayerEvent.Play || event == CSPlayerEvent.Pause) seekBurst.finish()
             exoPlayer?.apply {
                 when (event) {
                     CSPlayerEvent.Play -> {
@@ -1104,17 +1148,11 @@ class CS3IPlayer : IPlayer {
                         }
                     }
 
-                    CSPlayerEvent.PlayPauseToggle -> {
-                        if (playWhenReady) {
-                            handleEvent(CSPlayerEvent.Pause, source)
-                        } else {
-                            handleEvent(CSPlayerEvent.Play, source)
-                        }
-                    }
+                    CSPlayerEvent.PlayPauseToggle -> Unit // Resolved from logical intent above.
 
-                    CSPlayerEvent.SeekForward -> seekTime(seekActionTime, source)
+                    CSPlayerEvent.SeekForward -> this@CS3IPlayer.seekTime(seekActionTime, source)
 
-                    CSPlayerEvent.SeekBack -> seekTime(-seekActionTime, source)
+                    CSPlayerEvent.SeekBack -> this@CS3IPlayer.seekTime(-seekActionTime, source)
 
                     CSPlayerEvent.Restart -> seekTo(0, source)
 
@@ -1538,7 +1576,17 @@ class CS3IPlayer : IPlayer {
             val subtitleStartupToken = subtitleStartup.token
             exoPlayer?.addListener(object : Player.Listener {
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                    playbackIntent.observeBackend(intentToken, playWhenReady)
+                    if (!seekBurst.isChangingPlayback || reason != Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {
+                        playbackIntent.observeBackend(intentToken, playWhenReady)
+                    }
+                }
+
+                override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                    if (intentToken == playbackIntent.token && reason == Player.DISCONTINUITY_REASON_SEEK && !seekBurst.isCommitting) {
+                        // PlayerView's native time bar/media-session can seek
+                        // directly, bypassing IPlayer. Its absolute choice wins.
+                        seekBurst.cancel()
+                    }
                 }
 
                 override fun onTracksChanged(tracks: Tracks) {

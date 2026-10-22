@@ -730,7 +730,8 @@ class GeneratorPlayer : FullScreenPlayer() {
                 val actuallyStarted = (player as? CS3IPlayer)?.hasStartedPlayback() ?: player.getIsPlaying()
                 if (actuallyStarted) sourcePlaybackStarted = true
                 val eligible = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
-                    !isDialogOpen() && player.getPlayWhenReady()
+                    !isDialogOpen() && player.getPlayWhenReady() &&
+                    (player as? CS3IPlayer)?.isInteractiveSeeking() != true
                 val playingNow = (player as? CS3IPlayer)?.isActuallyPlaying() ?: player.getIsPlaying()
                 if (eligible && playingNow) playedMs += elapsed
                 if (playedMs >= 5_000L) {
