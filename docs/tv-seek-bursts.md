@@ -13,9 +13,9 @@ Current startup sample was ~207 MiB PSS, with one WebView; no long-duration or
 playback/seek memory improvement is claimed.
 
 Local diagnostics: `$TMPDIR/cs-seek-{exit-info,crash,memory-before}.txt`.
-The prior successfully deployed APK remains run `39401600263` until this fix is
-validated and explicitly deployed; no crash has been deliberately reproduced on
-live content or app data cleared.
+The prior successfully deployed APK was run `39401600263`; the validated seek fix
+has now replaced it in place as recorded below. No crash was deliberately reproduced
+on live content or app data cleared.
 
 ## Implementation
 
@@ -69,8 +69,16 @@ passed for code `a2e60cfa003a7fd6357009ea39506d97cdefafe4`:
 - Initial run `39807627110` was superseded/canceled for two additional reentrant
   completion safeguards/tests; no failing gate was bypassed.
 
-This seek fix has **not** been installed on the user's TV. The prior remote-control
-build remains installed, with its checksum/startup verification recorded separately.
+## TV deployment verified
+
+After the user's explicit “install” request, connected to `192.168.0.139:5555`
+and installed the validated stable APK with `adb install --no-streaming -r`:
+**Success**, preserving app data/settings and existing remote mappings.
+
+The installed base.apk SHA256 matches the above artifact exactly. Launched
+`com.lagradost.cloudstream3`; process PID `15556` remained running after 12 seconds,
+and the crash buffer was empty. Installation/startup verification is not a live
+rewind-stress test or confirmation that the historical exits are resolved.
 
 Audio-only fixture checks establish real Media3/main-loop integration, **not** TV
 video-decoder stability, WebView pressure or elimination of system low-memory kills.
