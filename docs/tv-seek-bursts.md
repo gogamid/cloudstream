@@ -54,6 +54,24 @@ live content or app data cleared.
   gate now requires all ten tests, alongside full app/library tests, lint, APKs,
   Android/JVM compilation and permanent stable signing.
 
+## Validated, ready for deployment
+
+Run [39808399721](https://github.com/gogamid/cloudstream/actions/runs/39808399721)
+passed for code `a2e60cfa003a7fd6357009ea39506d97cdefafe4`:
+
+- 749 app/library tests (206 + 543), no failures/errors/skips.
+- All ten emulator checks, including the three real Media3 seek/intent/replacement
+  tests and the previous seven Compose/remote-control regressions.
+- Lint, Android/JVM compilation, debug/stable APK builds and permanent signing check.
+- Stable APK SHA256:
+  `06997f0ae1dee6ca750de30500b6c55b97fa6b8773dfe407830c9d77bf0af336`.
+- Artifact/reports: `~/downloads/cs-seek-bursts-39808399721/`.
+- Initial run `39807627110` was superseded/canceled for two additional reentrant
+  completion safeguards/tests; no failing gate was bypassed.
+
+This seek fix has **not** been installed on the user's TV. The prior remote-control
+build remains installed, with its checksum/startup verification recorded separately.
+
 Audio-only fixture checks establish real Media3/main-loop integration, **not** TV
 video-decoder stability, WebView pressure or elimination of system low-memory kills.
 Targeted physical-TV testing remains necessary before calling the reported exits
