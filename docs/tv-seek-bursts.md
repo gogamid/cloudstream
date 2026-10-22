@@ -44,7 +44,7 @@ live content or app data cleared.
 
 ## Validation gate
 
-- Nineteen deterministic controller/intent/scheduler tests: long bursts, one seek,
+- Twenty-one deterministic controller/intent/scheduler tests: long bursts, one seek,
   logical pause/play/focus changes, bounds/overflow/unset/changing duration,
   no-op/reverse input, release/replacement/stale tasks and exception cleanup.
 - Three real Android Media3 tests with a small generated silent local WAV fixture:

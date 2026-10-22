@@ -19,6 +19,7 @@ class SeekBurstControllerTest {
         val failures = mutableListOf<Exception>()
         val tasks = linkedMapOf<Runnable, Long>()
         var onSeek: (() -> Unit)? = null
+        var onPreviewClear: (() -> Unit)? = null
         var failPause = false
         var failSeek = false
         lateinit var controller: SeekBurstController
@@ -42,7 +43,14 @@ class SeekBurstControllerTest {
                     backendPlaying = it
                     if (!controller.isChangingPlayback) intent.observeBackend(intent.token, it)
                 },
-                preview = { previews += it }, schedule = { task, delay -> tasks[task] = delay },
+                preview = {
+                    previews += it
+                    if (it == null) {
+                        val callback = onPreviewClear
+                        onPreviewClear = null
+                        callback?.invoke()
+                    }
+                }, schedule = { task, delay -> tasks[task] = delay },
                 remove = { tasks.remove(it); Unit }, changed = { changed++ },
                 failed = { failures += it },
             )
@@ -229,6 +237,25 @@ class SeekBurstControllerTest {
         f.quiet()
         assertTrue(f.restored.isEmpty())
         assertFalse(f.intent.value)
+    }
+
+    @Test fun `reentrant absolute choice during seek callback cannot strand the temporary pause`() {
+        val f = Fixture()
+        f.onSeek = { f.controller.cancel(); f.position = 20_000 }
+        f.controller.add(-10_000)
+        f.quiet()
+        assertTrue(f.backendPlaying)
+        assertEquals(listOf(true), f.restored)
+        assertEquals(20_000L, f.position)
+    }
+
+    @Test fun `release while clearing preview cannot seek or resume the replacement`() {
+        val f = Fixture()
+        f.onPreviewClear = { f.controller.cancel(false); f.intent.beginLoad(false) }
+        f.controller.add(-10_000)
+        f.quiet()
+        assertTrue(f.seeks.isEmpty())
+        assertTrue(f.restored.isEmpty())
     }
 
     @Test fun `pause failure clears interaction and restores intent without scheduling stale work`() {

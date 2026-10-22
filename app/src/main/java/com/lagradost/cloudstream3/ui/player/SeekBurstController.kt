@@ -77,10 +77,11 @@ internal class SeekBurstController(
         commit = null
         pending = null
         val token = ++generation
-        preview(null)
         val previous = isCommitting
         isCommitting = true
         try {
+            preview(null)
+            if (generation != token) return
             val destination = clamp(target.toMs)
             if (destination != position().coerceAtLeast(0)) seek(destination)
         } catch (error: Exception) {
@@ -97,13 +98,14 @@ internal class SeekBurstController(
     }
 
     fun cancel(restorePlayback: Boolean = true) {
-        val active = pending != null
+        val hadPending = pending != null
+        val active = hadPending || isCommitting
         val token = ++generation
         commit?.let(remove)
         commit = null
         pending = null
         if (!active) return
-        preview(null)
+        if (hadPending) preview(null)
         if (restorePlayback && generation == token) {
             restoreIntent()
             if (generation == token) changed()
