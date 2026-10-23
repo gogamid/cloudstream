@@ -48,7 +48,11 @@ reflect this explicitly requested behavior change.
 
 ## Validation / deployment
 
-Pending fork Actions. Added/retained gates:
+Run [40020715901](https://github.com/gogamid/cloudstream/actions/runs/40020715901)
+passed for `e3cb65b574aabe584acf838c403606882205f3e9`:
+**789 app/library tests (246 + 543), no failures/errors/skips, all 22 Android checks**,
+lint, JVM/Android compilation, APK builds and permanent signing verification.
+Added/retained gates:
 
 - Sixteen pure policy regressions: default 49/50 boundary; custom/zero/large/invalid
   thresholds; completion before count; manual Skip; non-skippable providers; hidden
@@ -65,5 +69,22 @@ Pending fork Actions. Added/retained gates:
 - All prior tests/build/lint/signing gates retained; instrumentation requires all
   **22 Android checks**, up from 18. No local Termux Gradle build.
 
-No new APK has been installed. Automated policy/settings/provider-fixture results
-are not live-TV playback/codec/host or long-duration memory verification.
+Stable APK SHA256:
+`1d71021347fe673faa191a7330e7118e1aada93757477d37118e71c4f8e1f8ae`.
+Artifact/reports: `~/downloads/cs-source-count-40020715901/`.
+
+## TV deployment verified
+
+After the user's explicit request to install before continuing CI optimization,
+connected to `192.168.0.139:5555` and updated the stable package with
+`adb install --no-streaming -r`: **Success**. No uninstall, data clearing, preference
+rewrite or remote-key assignment was performed.
+
+The installed base.apk SHA256 matches the validated artifact above. Launched
+`com.lagradost.cloudstream3`; PID `15050` remained running after 12 seconds, with
+an empty crash buffer. This supersedes the previously installed source-wait build.
+The CI workflow optimization was still an uncommitted local edit and is not part
+of this installed APK.
+
+Automated policy/settings/provider-fixture results and startup verification are
+not live-TV playback/codec/host or long-duration memory verification.
