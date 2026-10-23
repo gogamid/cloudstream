@@ -24,6 +24,11 @@
   can still fall back immediately. Do not confuse this with source collection.
 - Build/test through the fork's GitHub Actions, not local Termux Gradle. Push only
   to `gogamid/cloudstream`; no upstream pushes or master merges without permission.
+- Keep trusted fork Gradle caches writable across Actions runs. The optimized
+  workflow is validated only when `build`, `signed-stable` and `compose-input-smoke`
+  all pass. Never treat an uploaded APK alone as a green build or skip regression,
+  lint, emulator or permanent-certificate checks for speed. New branches may still
+  build cold; cache/task timing claims require measured runs.
 - Install only validated permanently signed APKs after authorization. Update in
   place, preserving app data and mappings; never uninstall/clear data to resolve
   a signing conflict without explicit permission. Distinguish automated checks
