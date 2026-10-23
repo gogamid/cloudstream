@@ -180,7 +180,7 @@ class PlayerGestureHelper(private val playerView: PlayerView) {
     var doubleTapPauseEnabled: Boolean = false
 
     /** Seek distance (ms) for each double-tap seek. Read from prefs in [initialize]. */
-    var fastForwardTime: Long = 10_000L
+    private val fastForwardTime: Long get() = playerView.seekAmountMs()
 
     /** Monotonically-incremented token; cancels any pending single-tap runnable when a double-tap arrives. */
     private var doubleTapToken = 0
@@ -222,7 +222,6 @@ class PlayerGestureHelper(private val playerView: PlayerView) {
             speedupEnabled = sm.getBoolean(context.getString(R.string.speedup_key), false)
             doubleTapEnabled = sm.getBoolean(context.getString(R.string.double_tap_enabled_key), false)
             doubleTapPauseEnabled = sm.getBoolean(context.getString(R.string.double_tap_pause_enabled_key), false)
-            fastForwardTime = sm.getInt(context.getString(R.string.double_tap_seek_time_key), 10).toLong() * 1000L
         } catch (_: Exception) {
         }
 
@@ -913,8 +912,9 @@ class PlayerGestureHelper(private val playerView: PlayerView) {
                 }
             })
             rewText?.startAnimation(goLeft)
-            rewText?.text = context.getString(R.string.rew_text_format).format(fastForwardTime / 1000)
-            playerView.player.seekTime(-fastForwardTime)
+            val amount = fastForwardTime
+            rewText?.text = context.getString(R.string.rew_text_format).format(amount / 1000)
+            playerView.player.seekTime(-amount)
         } catch (e: Exception) { logError(e) }
     }
 
@@ -951,8 +951,9 @@ class PlayerGestureHelper(private val playerView: PlayerView) {
                 }
             })
             ffwdText?.startAnimation(goRight)
-            ffwdText?.text = context.getString(R.string.ffw_text_format).format(fastForwardTime / 1000)
-            playerView.player.seekTime(fastForwardTime)
+            val amount = fastForwardTime
+            ffwdText?.text = context.getString(R.string.ffw_text_format).format(amount / 1000)
+            playerView.player.seekTime(amount)
         } catch (e: Exception) { logError(e) }
     }
 

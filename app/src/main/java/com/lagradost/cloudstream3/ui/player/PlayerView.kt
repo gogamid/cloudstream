@@ -209,8 +209,13 @@ class PlayerView @JvmOverloads constructor(
     private var timeLive: View? = null
     private var exoProgress: LivePreviewTimeBar? = null
 
-    /** Seek delta used by the basic rew/ffwd click listeners. Read from settings in [initialize]. */
-    var seekTime: Long = 10_000L
+    /** Resolve live so controls, mapped keys and native sessions use the same saved amount. */
+    private val seekSettings by lazy { PlayerSeekSettings(context) }
+
+    internal fun seekAmountMs(): Long = seekSettings.amountMs(
+        isTv = isLayout(TV or EMULATOR),
+        controlsVisible = callbacks?.isUIShowing() == true
+    )
 
     /** True when the current video is taller than it is wide. Set by [mainCallback] on [ResizedEvent]. */
     var isVerticalOrientation: Boolean = false
@@ -280,6 +285,7 @@ class PlayerView @JvmOverloads constructor(
         )
 
         if (player is CS3IPlayer) {
+            (player as CS3IPlayer).setSeekDurationProvider(::seekAmountMs)
             // Preview bar
             val progressBar: PreviewTimeBar? = exoPlayerView?.findViewById(R.id.exo_progress)
             exoProgress = progressBar as? LivePreviewTimeBar
@@ -359,18 +365,16 @@ class PlayerView @JvmOverloads constructor(
                     }
                 })
 
-            // Read seek time and rotation settings.
+            // Read rotation settings; seek amounts are resolved live from settings.
             try {
                 val sm = PreferenceManager.getDefaultSharedPreferences(context)
-                seekTime = sm.getInt(context.getString(R.string.double_tap_seek_time_key), 10)
-                    .toLong() * 1000L
                 autoPlayerRotateEnabled = sm.getBoolean(
                     context.getString(R.string.auto_rotate_video_key), true
                 )
             } catch (_: Exception) {
             }
 
-            val seekSecs = (seekTime / 1000).toInt()
+            val seekSecs = (seekAmountMs() / 1000).toInt()
             exoRewText?.text = context.getString(R.string.rew_text_regular_format).format(seekSecs)
             exoFfwdText?.text = context.getString(R.string.ffw_text_regular_format).format(seekSecs)
 
@@ -598,7 +602,11 @@ class PlayerView @JvmOverloads constructor(
     private fun playerUpdated(player: Any?) {
         if (player is ExoPlayer) {
             mMediaSession?.release()
-            mMediaSession = MediaSession.Builder(context, player)
+            val attachedPlayer = this.player
+            val seekRelative = (attachedPlayer as? CS3IPlayer)?.currentRelativeSeek()
+                ?: { delta: Long -> attachedPlayer.seekTime(delta) }
+            val settingsPlayer = SettingsSeekPlayer(player, ::seekAmountMs, seekRelative)
+            mMediaSession = MediaSession.Builder(context, settingsPlayer)
                 // Ensure unique ID for concurrent players.
                 .setId(System.currentTimeMillis().toString())
                 .build()
@@ -606,7 +614,7 @@ class PlayerView @JvmOverloads constructor(
             // Necessary for multiple combined videos.
             @Suppress("DEPRECATION")
             exoPlayerView?.setShowMultiWindowTimeBar(true)
-            exoPlayerView?.player = player
+            exoPlayerView?.player = settingsPlayer
             exoPlayerView?.performClick()
         }
         callbacks?.playerUpdated(player)

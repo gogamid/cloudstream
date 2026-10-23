@@ -1,5 +1,11 @@
 # Progressive source playback (fork)
 
+> Historical implementation/validation record. The later user-requested
+> [settings and source-collection correction](player-settings-source-collection.md)
+> supersedes the automatic 750ms/2.5s/priority-based early-start rules below:
+> now collect all available source descriptors unless the user explicitly presses
+> Skip. Source ranking, truthful collection, failover and preference protections remain.
+
 ## Goals
 
 Start without waiting for every provider mirror, honor a series/profile's explicit

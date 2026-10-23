@@ -12,67 +12,93 @@ class SourcePlaybackPlanTest {
     private fun candidate(id: String, video: SeriesSourcePreferences.Video = video(),
                           priority: Int = 5, allowed: Boolean = true) =
         SourcePlaybackPlan.Candidate(id, video, priority, allowed)
-    private fun ready(plan: SourcePlaybackPlan<String>, now: Long,
+    private fun ready(plan: SourcePlaybackPlan<String>,
                       candidates: List<SourcePlaybackPlan.Candidate<String>>,
-                      preferences: SeriesSourcePreferences = SeriesSourcePreferences(),
                       collecting: Boolean = true, canSkip: Boolean = true) =
-        plan.ready(now, candidates, preferences, collecting, canSkip, instantPriority = 10)
+        plan.ready(candidates, collecting, canSkip)
 
-    @Test fun `saved choice wins over a higher priority early mirror`() {
+    @Test fun `saved choice still wins but does not skip collecting other mirrors`() {
         val plan = SourcePlaybackPlan<String>()
         val preference = SeriesSourcePreferences(video = video())
         val early = candidate("early", video("Other"), 20)
-        assertFalse(ready(plan, 0, listOf(early), preference))
+        assertFalse(ready(plan, listOf(early)))
         val saved = candidate("saved", video(name = "Mirror S01E02 1080p"), 1)
-        assertTrue(ready(plan, 700, listOf(early, saved), preference))
-        assertEquals("saved", plan.ranked(listOf(early, saved), preference).first().id)
+        val links = listOf(early, saved)
+        assertFalse(ready(plan, links))
+        assertTrue(ready(plan, links, collecting = false))
+        assertEquals("saved", plan.ranked(links, preference).first().id)
     }
 
-    @Test fun `missing saved source has a bounded wait which arrivals do not extend`() {
+    @Test fun `even priority ten or much higher cannot imply Skip`() {
         val plan = SourcePlaybackPlan<String>()
-        val preference = SeriesSourcePreferences(video = video())
-        val other = candidate("other", video("Other"), 5)
-        assertFalse(ready(plan, 1000, listOf(other), preference))
-        assertFalse(ready(plan, 3499, listOf(other, candidate("later", video("Third"))), preference))
-        assertTrue(ready(plan, 3500, listOf(other), preference))
+        for (priority in listOf(1, 10, 20, Int.MAX_VALUE)) {
+            val links = listOf(candidate("other", video("Other"), priority))
+            assertFalse(ready(plan, links))
+            assertTrue(ready(plan, links, collecting = false))
+        }
     }
 
-    @Test fun `weak provider match retains preferred quality but waits for actual host`() {
+    @Test fun `weak provider match retains preferred quality after complete collection`() {
         val plan = SourcePlaybackPlan<String>()
         val prefs = SeriesSourcePreferences(video = video(name = "Old filename", host = null))
         val sameQuality = candidate("1080", video(name = "New filename", host = "new.example"), 1)
         val differentQuality = candidate("2160", video(name = "Other filename", quality = 2160), 20)
         val links = listOf(differentQuality, sameQuality)
-        assertFalse(ready(plan, 0, links, prefs))
-        assertTrue(ready(plan, 2500, links, prefs))
+        assertFalse(ready(plan, links))
+        assertTrue(ready(plan, links, collecting = false))
         assertEquals("1080", plan.ranked(links, prefs).first().id)
     }
 
-    @Test fun `without preference settle briefly and then play during extraction`() {
+    @Test fun `each arriving source remains collecting until provider completion`() {
         val plan = SourcePlaybackPlan<String>()
-        val links = listOf(candidate("first"))
-        assertFalse(ready(plan, 100, links))
-        assertFalse(ready(plan, 849, links))
-        assertTrue(ready(plan, 850, links))
+        val links = mutableListOf<SourcePlaybackPlan.Candidate<String>>()
+        repeat(100) { index ->
+            links += candidate("mirror-$index")
+            assertFalse(ready(plan, links))
+        }
+        assertTrue(ready(plan, links, collecting = false))
+        assertEquals(100, plan.ranked(links, SeriesSourcePreferences()).size)
     }
 
-    @Test fun `skip and completion start immediately but never select disallowed links`() {
+    @Test fun `explicit Skip starts immediately but never selects disallowed links`() {
         val plan = SourcePlaybackPlan<String>()
-        val preferences = SeriesSourcePreferences(video = video())
         val links = listOf(candidate("other", video("Other")))
-        plan.skipRequested = true
-        assertTrue(ready(plan, 0, links, preferences))
-        assertFalse(ready(plan, 0, listOf(candidate("hidden", allowed = false)), preferences))
-        assertFalse(ready(plan, 0, emptyList(), preferences))
-        assertTrue(ready(SourcePlaybackPlan(), 0, links, preferences, collecting = false))
+        assertTrue(plan.requestSkip(canSkip = true))
+        assertTrue(ready(plan, links))
+        assertFalse(ready(plan, listOf(candidate("hidden", allowed = false))))
+        assertFalse(ready(plan, emptyList()))
+        assertTrue(ready(SourcePlaybackPlan(), links, collecting = false))
     }
 
-    @Test fun `providers which cannot skip are allowed to complete extraction`() {
+    @Test fun `providers which cannot skip must complete extraction`() {
         val plan = SourcePlaybackPlan<String>()
         val links = listOf(candidate("saved", priority = 100))
-        assertFalse(ready(plan, 0, links, canSkip = false))
-        assertFalse(ready(plan, 100000, links, canSkip = false))
-        assertTrue(ready(plan, 100001, links, collecting = false, canSkip = false))
+        assertFalse(plan.requestSkip(canSkip = false))
+        assertFalse(plan.skipRequested)
+        assertFalse(ready(plan, links, canSkip = false))
+        assertTrue(ready(plan, links, collecting = false, canSkip = false))
+    }
+
+    @Test fun `Skip readiness still requires an unattempted available source`() {
+        val plan = SourcePlaybackPlan<String>()
+        assertTrue(plan.requestSkip(canSkip = true))
+        plan.attempted("first")
+        assertFalse(ready(plan, listOf(candidate("first"))))
+        assertTrue(ready(plan, listOf(candidate("first"), candidate("late"))))
+    }
+
+    @Test fun `Skip never carries over to a new episode`() {
+        val links = listOf(candidate("first"))
+        val oldEpisode = SourcePlaybackPlan<String>()
+        oldEpisode.requestSkip(canSkip = true)
+        assertTrue(ready(oldEpisode, links))
+        assertFalse(ready(SourcePlaybackPlan(), links))
+    }
+
+    @Test fun `empty and fully hidden completed collections do not report ready`() {
+        val plan = SourcePlaybackPlan<String>()
+        assertFalse(ready(plan, emptyList(), collecting = false))
+        assertFalse(ready(plan, listOf(candidate("hidden", allowed = false)), collecting = false))
     }
 
     @Test fun `fallback searches all untried links not just below saved source`() {

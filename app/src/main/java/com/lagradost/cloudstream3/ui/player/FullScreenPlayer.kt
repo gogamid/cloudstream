@@ -94,8 +94,6 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
      **/
     protected var currentQualityProfile = 1
 
-    protected var androidTVInterfaceOffSeekTime = 10000L
-    protected var androidTVInterfaceOnSeekTime = 30000L
     protected var playBackSpeedEnabled = false
     protected var playerResizeEnabled = false
     protected var playerRotateEnabled = false
@@ -1040,6 +1038,8 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     }
 
     private fun updateUIVisibility() {
+        playerHostView?.gestureHelper?.resetRewindText()
+        playerHostView?.gestureHelper?.resetFastForwardText()
         val isGone = isLocked || !isShowing
         var togglePlayerTitleGone = isGone
         context?.let {
@@ -1269,10 +1269,10 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
             KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (!isShowing && !isLocked && !isShowingEpisodeOverlay) {
-                    player.seekTime(-androidTVInterfaceOffSeekTime)
+                    player.handleEvent(CSPlayerEvent.SeekBack)
                     return true
                 } else if (playerBinding?.playerPausePlay?.isFocused == true) {
-                    player.seekTime(-androidTVInterfaceOnSeekTime)
+                    player.handleEvent(CSPlayerEvent.SeekBack)
                     return true
                 } else {
                     return null
@@ -1281,9 +1281,9 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 if (!isShowing && !isLocked && !isShowingEpisodeOverlay) {
-                    player.seekTime(androidTVInterfaceOffSeekTime)
+                    player.handleEvent(CSPlayerEvent.SeekForward)
                 } else if (playerBinding?.playerPausePlay?.isFocused == true) {
-                    player.seekTime(androidTVInterfaceOnSeekTime)
+                    player.handleEvent(CSPlayerEvent.SeekForward)
                 } else {
                     return null
                 }
@@ -1479,19 +1479,6 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         try {
             context?.let { ctx ->
                 val settingsManager = PreferenceManager.getDefaultSharedPreferences(ctx)
-
-                androidTVInterfaceOffSeekTime =
-                    settingsManager.getInt(
-                        ctx.getString(R.string.android_tv_interface_off_seek_key),
-                        10
-                    )
-                        .toLong() * 1000L
-                androidTVInterfaceOnSeekTime =
-                    settingsManager.getInt(
-                        ctx.getString(R.string.android_tv_interface_on_seek_key),
-                        10
-                    )
-                        .toLong() * 1000L
 
                 playBackSpeedEnabled = settingsManager.getBoolean(
                     ctx.getString(R.string.playback_speed_enabled_key),

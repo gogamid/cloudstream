@@ -602,7 +602,6 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     private var sourceStartupJob: Job? = null
-    private var sourceCollectionWaitJob: Job? = null
     private var deferredPlayerActionJob: Job? = null
     private var subtitleAutoSelectJob: Job? = null
     private val sourceOperations = PlaybackOperationGuard()
@@ -679,8 +678,6 @@ class GeneratorPlayer : FullScreenPlayer() {
         loggedFirstSources = false
         cachedSortedSourceLinks = null
         cachedSourceCandidates = emptyList()
-        sourceCollectionWaitJob?.cancel()
-        sourceCollectionWaitJob = null
         sourcePlan = SourcePlaybackPlan(::sourceAttemptKey)
         awaitingSourceFallback = false
         sourceResumePosition = null
@@ -691,25 +688,12 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     private fun maybeStartSource() {
         if (isPlayerActive.get()) return
-        val instance = viewModel.state.instance
-        if (sourceCollectionWaitJob?.isActive == true) return
-        val preferences = seriesPreferences()
-        sourceCollectionWaitJob = viewLifecycleOwner.lifecycleScope.launch {
-            while (isActive && instance == viewModel.state.instance && !isPlayerActive.get()) {
-                val candidates = sourceCandidates()
-                val collecting = collectingSources()
-                if (sourcePlan.ready(SystemClock.elapsedRealtime(), candidates, preferences,
-                        collecting, viewModel.generator?.canSkipLoading == true,
-                        QualityDataHelper.AUTO_SKIP_PRIORITY)) {
-                    startPlayer()
-                    return@launch
-                }
-                if (!collecting) {
-                    startPlayer() // Also handles a genuinely empty, completed extraction.
-                    return@launch
-                }
-                delay(250)
-            }
+        val collecting = collectingSources()
+        // Source/loading observers drive readiness. No timer or priority may
+        // silently turn waiting for the full collection into an automatic Skip.
+        if (!collecting || sourcePlan.ready(sourceCandidates(), collecting,
+                viewModel.generator?.canSkipLoading == true)) {
+            startPlayer() // Also handles a genuinely empty, completed extraction.
         }
     }
 
@@ -2023,7 +2007,6 @@ class GeneratorPlayer : FullScreenPlayer() {
         sourceOperations.advance()
         deferredPlayerActionJob?.cancel()
         subtitleAutoSelectJob?.cancel()
-        sourceCollectionWaitJob?.cancel()
         sourceStartupJob?.cancel()
         // Old dialog listeners must not resume or mutate a recreated player.
         listOf(selectSourceDialog, selectSubtitlesDialog, selectTrackDialog, selectSpeedDialog, selectCompressorDialog).forEach { dialog ->
@@ -2041,7 +2024,6 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     override fun onDestroy() {
-        sourceCollectionWaitJob?.cancel()
         sourceStartupJob?.cancel()
         ResultFragment.updateUI()
         currentVerifyLink?.cancel()
@@ -2646,9 +2628,10 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
 
         binding.overlayLoadingSkipButton.setOnClickListener {
-            sourcePlan.skipRequested = true
-            // Skip waiting, not extraction. Late sources/subtitles remain available.
-            startPlayer()
+            if (sourcePlan.requestSkip(viewModel.generator?.canSkipLoading == true)) {
+                // Skip waiting, not extraction. Late sources/subtitles remain available.
+                maybeStartSource()
+            }
         }
 
         binding.playerLoadingGoBack.setOnClickListener {

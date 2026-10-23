@@ -32,11 +32,6 @@ object QualityDataHelper {
     private const val DEFAULT_SOURCE_PRIORITY = 1
 
     /**
-     * Automatically skip loading links once this priority is reached
-     **/
-    const val AUTO_SKIP_PRIORITY = 10
-
-    /**
      * Must be higher than amount of QualityProfileTypes
      **/
     private const val PROFILE_COUNT = 7

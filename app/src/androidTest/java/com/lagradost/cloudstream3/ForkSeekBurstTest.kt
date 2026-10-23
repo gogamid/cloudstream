@@ -5,6 +5,7 @@ import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.preference.PreferenceManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lagradost.cloudstream3.ui.player.CS3IPlayer
@@ -12,6 +13,8 @@ import com.lagradost.cloudstream3.ui.player.CSPlayerEvent
 import com.lagradost.cloudstream3.ui.player.ErrorEvent
 import com.lagradost.cloudstream3.ui.player.ExtractorUri
 import com.lagradost.cloudstream3.ui.player.PlayerAttachedEvent
+import com.lagradost.cloudstream3.ui.player.PlayerSeekSettings
+import com.lagradost.cloudstream3.ui.player.SettingsSeekPlayer
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -45,6 +48,7 @@ class ForkSeekBurstTest {
         private val error = AtomicReference<Throwable?>()
         val seeks = AtomicInteger()
         lateinit var player: CS3IPlayer
+        lateinit var nativePlayer: Player
         init {
             // Twenty seconds of silent PCM: no network, media server, video
             // codec, storage permission, audio content or large fixture needed.
@@ -59,11 +63,14 @@ class ForkSeekBurstTest {
                     player = CS3IPlayer(tvSeekEnabled = { true })
                     player.initCallbacks({ event ->
                         if (event is ErrorEvent) error.set(event.error)
-                        if (event is PlayerAttachedEvent) (event.player as? Player)?.addListener(object : Player.Listener {
-                            override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
-                                if (reason == Player.DISCONTINUITY_REASON_SEEK) seeks.incrementAndGet()
-                            }
-                        })
+                        if (event is PlayerAttachedEvent) {
+                            nativePlayer = event.player as Player
+                            nativePlayer.addListener(object : Player.Listener {
+                                override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                                    if (reason == Player.DISCONTINUITY_REASON_SEEK) seeks.incrementAndGet()
+                                }
+                            })
+                        }
                     }, null)
                     load()
                 }
@@ -96,6 +103,108 @@ class ForkSeekBurstTest {
         override fun close() {
             if (::player.isInitialized) main { player.release(); player.releaseCallbacks() }
             file.delete()
+        }
+    }
+
+    private fun withSeekSettings(block: () -> Unit) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val values = mapOf(
+            context.getString(R.string.android_tv_interface_off_seek_key) to 5,
+            context.getString(R.string.android_tv_interface_on_seek_key) to 10,
+            context.getString(R.string.double_tap_seek_time_key) to 7
+        )
+        val previous = values.keys.associateWith { preferences.all[it] }
+        assertTrue(preferences.edit().apply { values.forEach { (key, value) -> putInt(key, value) } }.commit())
+        try { block() } finally {
+            assertTrue(preferences.edit().apply {
+                previous.forEach { (key, value) -> if (value == null) remove(key) else putInt(key, value as Int) }
+            }.commit())
+        }
+    }
+
+    @Test fun mappedRewindUsesSavedFiveSecondAmountNotThirty() = withSeekSettings {
+        Fixture().use { f ->
+            main {
+                f.player.handleEvent(CSPlayerEvent.SeekBack)
+                assertTrue(f.player.isInteractiveSeeking())
+                f.player.finishInteractiveSeek()
+            }
+            f.ready()
+            main {
+                assertEquals(1, f.seeks.get())
+                assertEquals(5_000.0, (f.player.getPosition() ?: -1).toDouble(), 100.0)
+                assertFalse(f.player.getPlayWhenReady())
+            }
+        }
+    }
+
+    @Test fun shownTenSecondSettingIsLiveAndIndependentOfHiddenFiveSeconds() = withSeekSettings {
+        Fixture().use { f ->
+            val settings = PlayerSeekSettings(InstrumentationRegistry.getInstrumentation().targetContext)
+            var shown = false
+            main {
+                f.player.setSeekDurationProvider { settings.amountMs(isTv = true, controlsVisible = shown) }
+                val controls = SettingsSeekPlayer(f.nativePlayer,
+                    { settings.amountMs(isTv = true, controlsVisible = shown) },
+                    f.player.currentRelativeSeek())
+                assertEquals(5_000L, controls.getSeekBackIncrement())
+                shown = true
+                assertEquals(10_000L, controls.getSeekBackIncrement())
+                assertEquals(10_000L, controls.getSeekForwardIncrement())
+                f.player.handleEvent(CSPlayerEvent.SeekBack)
+                f.player.finishInteractiveSeek()
+            }
+            f.ready()
+            main {
+                assertEquals(0.0, (f.player.getPosition() ?: -1).toDouble(), 100.0)
+                assertFalse(f.player.getPlayWhenReady())
+            }
+        }
+    }
+
+    @Test fun nativeControlsFollowPhoneAmountAndDoNotBypassTvBatcher() = withSeekSettings {
+        Fixture().use { f ->
+            val settings = PlayerSeekSettings(InstrumentationRegistry.getInstrumentation().targetContext)
+            main {
+                val controls = SettingsSeekPlayer(f.nativePlayer,
+                    { settings.amountMs(isTv = false, controlsVisible = true) },
+                    f.player.currentRelativeSeek())
+                assertEquals(7_000L, controls.getSeekBackIncrement())
+                controls.seekBack()
+                assertTrue(f.player.isInteractiveSeeking())
+                assertEquals(0, f.seeks.get())
+                f.player.finishInteractiveSeek()
+            }
+            f.ready()
+            main {
+                assertEquals(1, f.seeks.get())
+                assertEquals(3_000.0, (f.player.getPosition() ?: -1).toDouble(), 100.0)
+                assertFalse(f.player.getPlayWhenReady())
+            }
+        }
+    }
+
+    @Test fun oldNativeControlsCannotSeekOrResumeReplacementBackend() = withSeekSettings {
+        Fixture().use { f ->
+            lateinit var controls: SettingsSeekPlayer
+            main {
+                controls = SettingsSeekPlayer(f.nativePlayer, { 5_000L }, f.player.currentRelativeSeek())
+                f.player.release()
+                f.load()
+            }
+            f.ready()
+            main {
+                f.seeks.set(0)
+                controls.seekBack()
+                assertFalse(f.player.isInteractiveSeeking())
+            }
+            Thread.sleep(600)
+            main {
+                assertEquals(0, f.seeks.get())
+                assertEquals(10_000.0, (f.player.getPosition() ?: -1).toDouble(), 100.0)
+                assertFalse(f.player.getPlayWhenReady())
+            }
         }
     }
 

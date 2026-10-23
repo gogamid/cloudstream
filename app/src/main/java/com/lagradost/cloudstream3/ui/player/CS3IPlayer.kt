@@ -155,7 +155,22 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
 
     val imageGenerator = IPreviewGenerator.new()
 
-    private val seekActionTime = 30000L
+    private var seekSettings: PlayerSeekSettings? = null
+    private var seekDurationProvider: (() -> Long)? = null
+
+    internal fun setSeekDurationProvider(provider: () -> Long) {
+        seekDurationProvider = provider
+    }
+
+    /** MediaSession/UI controls attached to an old backend must not seek its replacement. */
+    internal fun currentRelativeSeek(): (Long) -> Unit {
+        val token = playbackOperations.token()
+        return { delta -> if (playbackOperations.isCurrent(token)) seekTime(delta) }
+    }
+
+    private fun seekActionTime(): Long = seekDurationProvider?.invoke()
+        ?: seekSettings?.amountMs(tvSeekEnabled() || isLayout(EMULATOR), controlsVisible = false)
+        ?: SeekDurationPolicy.DEFAULT_MS
     private val isMediaSeekable
         get() = exoPlayer?.let {
             it.isCommandAvailable(Player.COMMAND_GET_CURRENT_MEDIA_ITEM) && it.isCurrentMediaItemSeekable
@@ -334,6 +349,7 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
         externalSubtitles.setRenderingEnabled(false)
         checkpointHandler.removeCallbacks(checkpointRunnable)
         eventHandler = null
+        seekDurationProvider = null // Do not retain a detached PlayerView/activity.
         if (isPlayerActive) {
             isPlayerActive = false
             activePlayers -= 1
@@ -392,6 +408,7 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
     ) {
         Log.i(TAG, "loadPlayer")
         subtitleContext = context.applicationContext
+        seekSettings = PlayerSeekSettings(context)
         val previousIntent = getPlayWhenReady()
         if (sameEpisode) {
             saveData()
@@ -1150,9 +1167,9 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
 
                     CSPlayerEvent.PlayPauseToggle -> Unit // Resolved from logical intent above.
 
-                    CSPlayerEvent.SeekForward -> this@CS3IPlayer.seekTime(seekActionTime, source)
+                    CSPlayerEvent.SeekForward -> this@CS3IPlayer.seekTime(seekActionTime(), source)
 
-                    CSPlayerEvent.SeekBack -> this@CS3IPlayer.seekTime(-seekActionTime, source)
+                    CSPlayerEvent.SeekBack -> this@CS3IPlayer.seekTime(-seekActionTime(), source)
 
                     CSPlayerEvent.Restart -> seekTo(0, source)
 
@@ -1244,6 +1261,8 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
     ): ExoPlayer {
         val exoPlayerBuilder =
             ExoPlayer.Builder(context)
+                .setSeekBackIncrementMs(seekActionTime())
+                .setSeekForwardIncrementMs(seekActionTime())
                 .setMediaSourceFactory(
                     DefaultMediaSourceFactory(context).setLiveTargetOffsetMs(
                         PREFERRED_LIVE_OFFSET

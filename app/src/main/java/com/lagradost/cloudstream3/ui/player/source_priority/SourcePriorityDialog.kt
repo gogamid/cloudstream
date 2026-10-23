@@ -94,7 +94,7 @@ class SourcePriorityDialog(
 
             helpBtt.setOnClickListener {
                 AlertDialog.Builder(context, R.style.AlertDialogCustom).apply {
-                    setMessage(R.string.quality_profile_help)
+                    setMessage(R.string.quality_profile_collection_help)
                 }.show()
             }
 
