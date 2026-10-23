@@ -97,6 +97,17 @@ A checksum-verified phone copy is saved at
 `/storage/emulated/0/Download/Cloudstream-Stable-SettingsFix-200cdba.apk`, alongside
 the earlier APK (not silently replacing its file).
 
-No new APK has been installed on either device. Automated local-audio/provider-fixture
-checks are not confirmation of live TV codec/host stability, rewind stress or memory
-behavior. The previously installed TV seek-fix remains in place pending deployment.
+## TV deployment verified
+
+After the user's explicit “install on tv” request, connected to
+`192.168.0.139:5555` and updated the stable package using
+`adb install --no-streaming -r`: **Success**. No uninstall, data clearing,
+preference changes or remote-binding assignments were performed.
+
+The installed base.apk SHA256 matches the validated artifact above. Launched
+`com.lagradost.cloudstream3`; PID `599` remained running after 12 seconds and the
+crash buffer was empty. The prior TV seek-fix has been superseded by this build.
+Phone installation remains unconfirmed; the verified Downloads copy remains available.
+
+Automated local-audio/provider-fixture checks and TV startup verification are not
+confirmation of live codec/host stability, rewind stress or memory behavior.
