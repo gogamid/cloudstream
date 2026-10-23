@@ -37,7 +37,11 @@ network request, video buffer or per-frame preference read is added.
 
 ## Validation / deployment
 
-Pending fork Actions. Coverage includes:
+Run [40009053808](https://github.com/gogamid/cloudstream/actions/runs/40009053808)
+passed for `c0807831b1da09f63753dd5e3d178058737a149b`:
+**773 app/library tests (230 + 543), no failures/errors/skips; all 18 Android checks**,
+lint, JVM/Android compilation, APK builds and permanent certificate verification.
+Coverage includes:
 
 - The original five startup-policy tests plus twelve configuration regressions:
   10-second boundary, all 1–120 values, independent attempts, disabled timeout,
@@ -50,5 +54,13 @@ Pending fork Actions. Coverage includes:
   permanent certificate verification, and all **18 Android checks** (previous 16
   retained).
 
-No new APK has been installed. Live-provider/TV timing still needs observation;
-fixture tests do not establish host availability or long-duration codec stability.
+Stable APK SHA256:
+`2e24cf9a5c2c7058097594432ac3fee22583df32d75831d874c391bd888b91bf`.
+Artifact/reports: `~/downloads/cs-source-wait-40009053808/`.
+Checksum-verified phone copy:
+`/storage/emulated/0/Download/Cloudstream-Stable-SourceWait-c080783.apk`.
+
+No new APK has been installed on either device or any user setting changed. The
+TV remains on the previous validated settings/source-collection build from run
+`40004040461`. Live-provider/TV timing still needs observation; fixture tests do
+not establish host availability or long-duration codec stability.
