@@ -15,6 +15,11 @@
   Skip starts an available source without canceling remaining extraction. Collect
   source descriptors, not buffers/downloads for every video. Respect hidden-source
   and per-series preferences, and keep generation/cancellation guards.
+- Automatic source startup uses the saved `source_startup_wait_seconds` budget
+  (default 5, zero disables). Give each new attempt its own budget; exclude pause,
+  dialog, background and interactive-seek time. Never apply this startup deadline
+  after actual playback starts or to manual selections. Explicit playback errors
+  can still fall back immediately. Do not confuse this with source collection.
 - Build/test through the fork's GitHub Actions, not local Termux Gradle. Push only
   to `gogamid/cloudstream`; no upstream pushes or master merges without permission.
 - Install only validated permanently signed APKs after authorization. Update in

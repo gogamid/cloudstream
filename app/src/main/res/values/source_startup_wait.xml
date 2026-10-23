@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="source_startup_wait_title">Source startup wait (seconds)</string>
+    <string name="source_startup_wait_summary">Time allowed for each automatically selected source to start playback before trying the next. Default: 5 seconds. Set to 0 to disable the timeout. Pausing, dialogs and background time do not count. No timeout after playback starts or for manually selected sources; reported playback errors can still switch sources immediately.</string>
+</resources>

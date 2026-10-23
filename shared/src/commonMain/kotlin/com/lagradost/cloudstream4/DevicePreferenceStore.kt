@@ -169,6 +169,8 @@ class PlayerPreferences(preferences: PreferenceStore) {
     val tiktokEnabled = preferences.getBoolean("speedup_key", false)
     val autoPlayEnabled = preferences.getBoolean("autoplay_next_key", true)
     val startPaused = preferences.getBoolean("start_paused_key", false)
+    // Zero disables only the no-playback startup deadline, not explicit error fallback.
+    val sourceStartupWaitSeconds = preferences.getInt("source_startup_wait_seconds", 5)
     val skipOpEnabled = preferences.getBoolean("enable_skip_op_from_database", true)
     val autoRotateEnabled = preferences.getBoolean("auto_rotate_video_key", true)
     val rotateButtonEnabled = preferences.getBoolean("rotate_video_key", false)

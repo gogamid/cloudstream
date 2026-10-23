@@ -699,10 +699,13 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     private fun watchSourceStartup(link: VideoLink) {
         if (sourcePlaybackStarted) return
+        val ctx = context ?: return
+        // Snapshot the saved setting for this attempt; every fallback gets a fresh budget.
+        val waitMs = sourceStartupWaitMs(ctx)
         val preferenceKey = seriesPreferenceKey()
         val identity = videoIdentity(link)
         sourceStartupJob = viewLifecycleOwner.lifecycleScope.launch {
-            val timeout = SourceStartupTimeout(automatic = !manuallySelectedSource)
+            val timeout = SourceStartupTimeout(automatic = !manuallySelectedSource, limitMs = waitMs)
             var playedMs = 0L
             var previous = SystemClock.elapsedRealtime()
             while (isActive && currentSelectedLink == link) {
@@ -729,7 +732,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                     // Penalize this family for this episode only; do not overwrite
                     // the manual preference or repeatedly retry its URL variants.
                     sourcePlan.failed(link, identity)
-                    Log.i(TAG, "Automatic source startup exceeded 5 seconds without playback; trying next source")
+                    Log.i(TAG, "Automatic source startup exceeded ${waitMs / 1_000L} seconds without playback; trying next source")
                     nextMirror()
                     return@launch
                 }

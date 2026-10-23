@@ -58,6 +58,7 @@ class ForkComposeInputTestActivity : ComponentActivity() {
                         when (mode) {
                             "apply" -> ApplyDialog()
                             "retry" -> RetryPreference()
+                            "source-wait" -> SourceWaitPreference()
                             "disabled", "unrelated" -> OtherDialog(mode)
                             else -> Editor(mode == "settings-search")
                         }
@@ -93,6 +94,18 @@ class ForkComposeInputTestActivity : ComponentActivity() {
             requester.requestFocus()
             ready.set(true)
         }
+    }
+
+    @Composable
+    private fun SourceWaitPreference() {
+        // Render the actual active setting, not a lookalike slider with test-only wiring.
+        val item = com.lagradost.cloudstream3.ui.settings.SettingsPlayerScreen.getPreferences()
+            .filterIsInstance<com.mihon.presentation.settings.Preference.PreferenceGroup>()
+            .flatMap { it.preferenceItems }
+            .filterIsInstance<com.mihon.presentation.settings.Preference.PreferenceItem.SliderPreference>()
+            .single { it.preference.key() == "source_startup_wait_seconds" }
+        com.mihon.presentation.settings.PreferenceScreen(items = listOf(item))
+        SideEffect { ready.set(true) }
     }
 
     @Composable

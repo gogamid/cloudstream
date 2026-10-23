@@ -114,6 +114,14 @@ object SettingsPlayerScreen : SearchableSettings {
                             }
                         }),
 
+                    Preference.PreferenceItem.SliderPreference(
+                        preference = settings.player.sourceStartupWaitSeconds,
+                        title = stringResource(R.string.source_startup_wait_title),
+                        subtitle = stringResource(R.string.source_startup_wait_summary),
+                        icon = painterResource(R.drawable.hourglass_24),
+                        valueRange = 0..120,
+                    ),
+
                     Preference.PreferenceItem.SwitchPreference(
                         preference = settings.player.pipEnabled,
                         title = stringResource(R.string.picture_in_picture),
