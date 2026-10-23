@@ -60,7 +60,18 @@ Artifact/reports: `~/downloads/cs-source-wait-40009053808/`.
 Checksum-verified phone copy:
 `/storage/emulated/0/Download/Cloudstream-Stable-SourceWait-c080783.apk`.
 
-No new APK has been installed on either device or any user setting changed. The
-TV remains on the previous validated settings/source-collection build from run
-`40004040461`. Live-provider/TV timing still needs observation; fixture tests do
-not establish host availability or long-duration codec stability.
+## TV deployment verified
+
+After the user's explicit “go ahead install” request, connected to
+`192.168.0.139:5555` and installed this validated stable APK with
+`adb install --no-streaming -r`: **Success**. App data, settings and remote mappings
+were retained; no uninstall, data clearing, mapping assignment or wait-setting
+change was performed.
+
+The installed base.apk SHA256 matches the artifact above. Launched
+`com.lagradost.cloudstream3`; PID `9690` remained running after 12 seconds and the
+crash buffer was empty. This supersedes TV run `40004040461`. Phone installation
+remains unconfirmed; the verified Downloads APK remains available.
+
+Live-provider/TV timing still needs observation; startup verification and fixture
+tests do not establish host availability or long-duration codec stability.
