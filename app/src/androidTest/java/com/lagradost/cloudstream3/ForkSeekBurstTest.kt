@@ -64,7 +64,7 @@ class ForkSeekBurstTest {
                     player = CS3IPlayer(tvSeekEnabled = { true })
                     player.initCallbacks({ event ->
                         if (event is ErrorEvent) error.set(event.error)
-                        if (event is PlayerAttachedEvent) {
+                        if (event is PlayerAttachedEvent && event.player is Player) {
                             nativePlayer = event.player as Player
                             nativePlayer.addListener(object : Player.Listener {
                                 override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
