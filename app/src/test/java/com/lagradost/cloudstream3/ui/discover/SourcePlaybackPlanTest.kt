@@ -15,7 +15,8 @@ class SourcePlaybackPlanTest {
     private fun ready(plan: SourcePlaybackPlan<String>,
                       candidates: List<SourcePlaybackPlan.Candidate<String>>,
                       collecting: Boolean = true, canSkip: Boolean = true) =
-        plan.ready(candidates, collecting, canSkip)
+        // These full-collection regressions exercise the explicit disabled-count mode.
+        plan.ready(candidates, collecting, canSkip, autoStartAfter = 0)
 
     @Test fun `saved choice still wins but does not skip collecting other mirrors`() {
         val plan = SourcePlaybackPlan<String>()

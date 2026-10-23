@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="source_auto_start_count_title">Auto-start after sources loaded</string>
+    <string name="source_auto_start_count_summary">Start playback after this many usable, distinct video sources have loaded. Default: 50. Set to 0 to wait for all sources. If collection finishes with fewer, playback starts then. Manual Skip can start sooner; remaining sources and subtitles keep loading. Only applies to providers supporting early playback.</string>
+</resources>

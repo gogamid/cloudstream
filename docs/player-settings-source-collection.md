@@ -1,5 +1,11 @@
 # Respect player settings and wait for complete source collection
 
+> Historical implementation/deployment record. The later user-requested
+> [source-count auto-start setting](source-count-autostart.md) adds a default
+> threshold of 50 usable distinct sources. Set its value to 0 to preserve the
+> full-collection/manual-Skip behavior recorded below. Priorities still do not
+> implicitly Skip, and early playback still leaves extraction running.
+
 ## User request and diagnosis
 
 The user reported relative seeking always using 30 seconds instead of the saved

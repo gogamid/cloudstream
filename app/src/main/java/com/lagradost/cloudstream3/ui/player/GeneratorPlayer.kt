@@ -609,6 +609,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     private var cachedSourceCandidates = emptyList<SourcePlaybackPlan.Candidate<VideoLink>>()
     private var sourcePlan = SourcePlaybackPlan<VideoLink>(::sourceAttemptKey)
     private var sourceSessionInstance = -1
+    private var autoStartSourceCount = SourcePlaybackPlan.DEFAULT_AUTO_START_COUNT
     private var sourceCollectionStartedAt = 0L
     private var loggedFirstSources = false
     private var awaitingSourceFallback = false
@@ -673,6 +674,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     private fun prepareSourceSession() {
         if (sourceSessionInstance == viewModel.state.instance) return
         sourceSessionInstance = viewModel.state.instance
+        autoStartSourceCount = context?.let(::sourceAutoStartCount) ?: SourcePlaybackPlan.DEFAULT_AUTO_START_COUNT
         subtitleToggle.clear()
         sourceCollectionStartedAt = SystemClock.elapsedRealtime()
         loggedFirstSources = false
@@ -689,10 +691,10 @@ class GeneratorPlayer : FullScreenPlayer() {
     private fun maybeStartSource() {
         if (isPlayerActive.get()) return
         val collecting = collectingSources()
-        // Source/loading observers drive readiness. No timer or priority may
-        // silently turn waiting for the full collection into an automatic Skip.
+        // Observers drive readiness: completion, manual Skip, or the saved count.
+        // Priorities/timers must not bypass the configured collection threshold.
         if (!collecting || sourcePlan.ready(sourceCandidates(), collecting,
-                viewModel.generator?.canSkipLoading == true)) {
+                viewModel.generator?.canSkipLoading == true, autoStartAfter = autoStartSourceCount)) {
             startPlayer() // Also handles a genuinely empty, completed extraction.
         }
     }
@@ -2688,8 +2690,7 @@ class GeneratorPlayer : FullScreenPlayer() {
             if (instance != viewModel.state.instance) return@observe // Outdated observe
             prepareSourceSession()
 
-            val sortedLinks = viewModel.state.sortLinks(currentQualityProfile)
-            val usableLinks = sortedLinks.count { link -> link.shouldUseLink }
+            val usableLinks = sourcePlan.usableCount(sourceCandidates())
             if (usableLinks > 0 && !loggedFirstSources) {
                 loggedFirstSources = true
                 Log.i(TAG, "Source pipeline: first usable sources after ${SystemClock.elapsedRealtime() - sourceCollectionStartedAt}ms; usable=$usableLinks")
@@ -2711,7 +2712,7 @@ class GeneratorPlayer : FullScreenPlayer() {
 
             if (awaitingSourceFallback) nextMirror() else maybeStartSource()
 
-            if (turnVisible && wasGone) {
+            if (turnVisible && wasGone && !isPlayerActive.get()) {
                 binding.overlayLoadingSkipButton.requestFocus()
             }
         }

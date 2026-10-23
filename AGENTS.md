@@ -10,9 +10,11 @@
 - Regression-test non-default values (especially 5s/10s seek), not just defaults.
   A batching/safety mechanism may change when work runs, not the user's amount,
   source profile, subtitle choice, start-paused setting or playback intent.
-- Source collection waits for completion unless the user explicitly presses Skip.
-  Source/quality priority ranks candidates; it must not imply an automatic Skip.
-  Skip starts an available source without canceling remaining extraction. Collect
+- Initial source collection waits for completion, manual Skip, or the saved
+  `source_auto_start_count` threshold (default 50 usable distinct sources; zero
+  waits for all). Count only allowed sources using the same identities as ranking.
+  Source/quality priority must not imply Skip. Manual/count-based early playback
+  must not cancel extraction or fabricate completion. Collect
   source descriptors, not buffers/downloads for every video. Respect hidden-source
   and per-series preferences, and keep generation/cancellation guards.
 - Automatic source startup uses the saved `source_startup_wait_seconds` budget

@@ -15,8 +15,10 @@ next. Active **Settings → Player → Source startup wait (seconds)** now provi
   background time and interactive seek batching do not count.
 - Once actual playback has started, the startup deadline cannot interrupt later
   playback/rebuffering. Manual source selection has no startup deadline.
-- Waiting for complete source extraction unless Skip is pressed is unchanged.
-  This setting limits an attempted video's startup, not provider collection time.
+- Initial source collection is governed separately by the later
+  [count-based startup setting](source-count-autostart.md) (default 50 sources,
+  zero waits for all, manual Skip may start sooner). The wait setting here limits
+  an attempted video's startup, not provider collection time.
 - The independent five-second successful-playback observation used to learn a
   last-working source stays unchanged; it is not another fallback timeout.
 

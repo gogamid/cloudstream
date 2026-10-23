@@ -171,6 +171,8 @@ class PlayerPreferences(preferences: PreferenceStore) {
     val startPaused = preferences.getBoolean("start_paused_key", false)
     // Zero disables only the no-playback startup deadline, not explicit error fallback.
     val sourceStartupWaitSeconds = preferences.getInt("source_startup_wait_seconds", 5)
+    // Zero waits for complete collection unless the user explicitly presses Skip.
+    val sourceAutoStartCount = preferences.getInt("source_auto_start_count", 50)
     val skipOpEnabled = preferences.getBoolean("enable_skip_op_from_database", true)
     val autoRotateEnabled = preferences.getBoolean("auto_rotate_video_key", true)
     val rotateButtonEnabled = preferences.getBoolean("rotate_video_key", false)

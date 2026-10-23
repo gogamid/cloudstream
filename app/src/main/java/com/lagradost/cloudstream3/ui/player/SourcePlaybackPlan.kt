@@ -2,6 +2,8 @@ package com.lagradost.cloudstream3.ui.player
 
 /** Per-episode selection state, independent of provider arrival order and Android UI. */
 internal class SourcePlaybackPlan<T>(private val keyOf: (T) -> Any? = { it }) {
+    companion object { const val DEFAULT_AUTO_START_COUNT = 50 }
+
     data class Candidate<T>(val id: T, val video: SeriesSourcePreferences.Video?,
                             val priority: Int, val allowed: Boolean = true)
     private val attempted = mutableSetOf<Any?>()
@@ -56,11 +58,21 @@ internal class SourcePlaybackPlan<T>(private val keyOf: (T) -> Any? = { it }) {
                 .thenByDescending { it.candidate.priority })
             .map { it.candidate }
 
-    /** Collect the complete list unless the user explicitly chooses Skip.
-     * Saved choices and quality/source priorities rank links, never imply Skip.
-     * Skip changes playback readiness only; collection remains owned by the ViewModel.
+    /** Same visible, deduplicated source identities used for ranking and the Skip count. */
+    fun usableCount(candidates: List<Candidate<T>>): Int = candidates.asSequence()
+        .filter { it.allowed }.map { keyOf(it.id) }.distinct().count()
+
+    /** Start at completion, explicit Skip, or the configured usable-source count.
+     * Zero disables count-based startup. Priorities never imply Skip; neither
+     * manual nor count-based startup marks collection complete or stops extraction.
      */
-    fun ready(candidates: List<Candidate<T>>, collecting: Boolean, canSkip: Boolean): Boolean =
-        (!collecting || (skipRequested && canSkip)) &&
-            candidates.any { it.allowed && keyOf(it.id) !in attempted }
+    fun ready(candidates: List<Candidate<T>>, collecting: Boolean, canSkip: Boolean,
+              autoStartAfter: Int = DEFAULT_AUTO_START_COUNT): Boolean {
+        if (candidates.none { it.allowed && keyOf(it.id) !in attempted }) return false
+        if (!collecting) return true
+        if (!canSkip) return false
+        if (skipRequested) return true
+        val threshold = if (autoStartAfter >= 0) autoStartAfter else DEFAULT_AUTO_START_COUNT
+        return threshold > 0 && usableCount(candidates) >= threshold
+    }
 }

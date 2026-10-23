@@ -115,6 +115,14 @@ object SettingsPlayerScreen : SearchableSettings {
                         }),
 
                     Preference.PreferenceItem.SliderPreference(
+                        preference = settings.player.sourceAutoStartCount,
+                        title = stringResource(R.string.source_auto_start_count_title),
+                        subtitle = stringResource(R.string.source_auto_start_count_summary),
+                        icon = painterResource(R.drawable.play_arrow_24px),
+                        valueRange = 0..500,
+                    ),
+
+                    Preference.PreferenceItem.SliderPreference(
                         preference = settings.player.sourceStartupWaitSeconds,
                         title = stringResource(R.string.source_startup_wait_title),
                         subtitle = stringResource(R.string.source_startup_wait_summary),

@@ -14,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lagradost.cloudstream3.ui.player.SourceStartupTimeout
 import com.lagradost.cloudstream3.ui.player.sourceStartupWaitMs
+import com.lagradost.cloudstream3.ui.player.sourceAutoStartCount
 import com.lagradost.cloudstream4.AppSettings
 import org.junit.Assert.*
 import org.junit.Rule
@@ -28,12 +29,13 @@ class ForkSourceWaitSettingsTest {
 
     private fun isolatedPreference(block: () -> Unit) {
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        val key = AppSettings(context).player.sourceStartupWaitSeconds.key()
-        val original = preferences.all[key]
-        assertTrue(preferences.edit().remove(key).commit())
+        val settings = AppSettings(context).player
+        val keys = listOf(settings.sourceStartupWaitSeconds.key(), settings.sourceAutoStartCount.key())
+        val original = keys.associateWith { preferences.all[it] }
+        assertTrue(preferences.edit().apply { keys.forEach { remove(it) } }.commit())
         try { block() } finally {
             assertTrue(preferences.edit().apply {
-                if (original == null) remove(key) else putInt(key, original as Int)
+                original.forEach { (key, value) -> if (value == null) remove(key) else putInt(key, value as Int) }
             }.commit())
         }
     }
@@ -58,6 +60,32 @@ class ForkSourceWaitSettingsTest {
             compose.waitUntil(timeoutMillis = 15_000) { preference.get() == 0 }
             assertEquals(0L, sourceStartupWaitMs(context))
             assertFalse(SourceStartupTimeout(true, sourceStartupWaitMs(context)).tick(Long.MAX_VALUE, true, false))
+        }
+    }
+
+    @Test fun activeCountSliderDefaultsToFiftyAndPersistsCustomOrDisabledWithoutChangingWait() = isolatedPreference {
+        val settings = AppSettings(context).player
+        assertEquals(50, settings.sourceAutoStartCount.get())
+        assertEquals(50, sourceAutoStartCount(context))
+        settings.sourceStartupWaitSeconds.set(15)
+        val slider = SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)
+        ActivityScenario.launch<ForkComposeInputTestActivity>(
+            Intent(context, ForkComposeInputTestActivity::class.java).putExtra("mode", "source-count")
+        ).use { scenario ->
+            compose.onNodeWithText(context.getString(R.string.source_auto_start_count_title)).assertIsDisplayed()
+            val initial = compose.onNode(slider).fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo]
+            assertEquals(50f, initial.current, 0.001f)
+            compose.onNode(slider).performSemanticsAction(SemanticsActions.SetProgress) { it(25f) }
+            compose.waitUntil(timeoutMillis = 15_000) { settings.sourceAutoStartCount.get() == 25 }
+            assertEquals(25, sourceAutoStartCount(context))
+            scenario.recreate()
+            compose.waitForIdle()
+            val info = compose.onNode(slider).fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo]
+            assertEquals(25f, info.current, 0.001f)
+            compose.onNode(slider).performSemanticsAction(SemanticsActions.SetProgress) { it(0f) }
+            compose.waitUntil(timeoutMillis = 15_000) { settings.sourceAutoStartCount.get() == 0 }
+            assertEquals(0, sourceAutoStartCount(context))
+            assertEquals(15_000L, sourceStartupWaitMs(context))
         }
     }
 
