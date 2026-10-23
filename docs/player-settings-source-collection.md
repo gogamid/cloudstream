@@ -66,7 +66,10 @@ as standing instructions for future work.
 
 ## Validation / deployment
 
-Pending the fork's Actions gates. Added/updated checks:
+Run [40004040461](https://github.com/gogamid/cloudstream/actions/runs/40004040461)
+passed for `200cdba5ef60ca9015509ad4ea2781883ba59d15`: **761 app/library tests
+(218 + 543), no failures/errors/skips, all 16 Android checks**, lint, JVM/Android
+compilation, both APKs and permanent signing verification. Added/updated checks:
 
 - Nine pure seek-setting/batching tests, including independent shown/hidden/phone
   values, every slider value, positive legacy values, invalid values and 5s/10s bursts.
@@ -81,5 +84,19 @@ Pending the fork's Actions gates. Added/updated checks:
   builds, and the previous ten Android checks. Instrumentation must report all
   **16 tests**, not a weaker subset.
 
-No new APK has been installed. Automated local-audio/provider-fixture checks are
-not confirmation of live TV codec/host stability, rewind stress or memory behavior.
+The first run `39999902568` passed 761 tests/build/lint/signing and nine Android
+checks, but seven Media3 checks failed because the expanded test listener cast the
+normal null backend-detach event to a non-null Player. Restored the expected
+null-event guard without removing assertions; the complete rerun above passed.
+The final code also includes the volume-boost adapter compatibility correction.
+
+Stable APK SHA256:
+`ecc358bee61a8f45d4e6322576ccccb6ed013c2bebbe3fb0bd57f170a3a1fab2`.
+Artifact/reports: `~/downloads/cs-settings-sources-40004040461/`.
+A checksum-verified phone copy is saved at
+`/storage/emulated/0/Download/Cloudstream-Stable-SettingsFix-200cdba.apk`, alongside
+the earlier APK (not silently replacing its file).
+
+No new APK has been installed on either device. Automated local-audio/provider-fixture
+checks are not confirmation of live TV codec/host stability, rewind stress or memory
+behavior. The previously installed TV seek-fix remains in place pending deployment.
