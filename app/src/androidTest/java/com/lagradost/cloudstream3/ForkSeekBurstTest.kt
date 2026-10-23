@@ -5,6 +5,7 @@ import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.preference.PreferenceManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -171,6 +172,7 @@ class ForkSeekBurstTest {
                     { settings.amountMs(isTv = false, controlsVisible = true) },
                     f.player.currentRelativeSeek())
                 assertEquals(7_000L, controls.getSeekBackIncrement())
+                assertEquals((f.nativePlayer as ExoPlayer).audioSessionId, controls.audioSessionId ?: -1)
                 controls.seekBack()
                 assertTrue(f.player.isInteractiveSeeking())
                 assertEquals(0, f.seeks.get())

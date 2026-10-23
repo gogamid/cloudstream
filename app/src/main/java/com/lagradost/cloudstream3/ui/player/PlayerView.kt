@@ -209,9 +209,17 @@ class PlayerView @JvmOverloads constructor(
     private var timeLive: View? = null
     private var exoProgress: LivePreviewTimeBar? = null
 
-    /** Resolve live so controls, mapped keys and native sessions use the same saved amount. */
+    /** Preserve volume-boost access when native controls use a forwarding player. */
+    internal val audioSessionId: Int?
+        get() = when (val attached = exoPlayerView?.player) {
+            is SettingsSeekPlayer -> attached.audioSessionId
+            is ExoPlayer -> attached.audioSessionId
+            else -> null
+        }
+
     private val seekSettings by lazy { PlayerSeekSettings(context) }
 
+    /** Live resolution shared by controls, mapped keys and native sessions. */
     internal fun seekAmountMs(): Long = seekSettings.amountMs(
         isTv = isLayout(TV or EMULATOR),
         controlsVisible = callbacks?.isUIShowing() == true

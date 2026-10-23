@@ -33,6 +33,9 @@ independent. Native controls use `SettingsSeekPlayer`, which reports the effecti
 increment and routes relative commands through the existing TV burst controller.
 The underlying Media3 builder also receives the configured increment, not another
 library default. Source-generation guards invalidate old native seek callbacks.
+The control adapter also preserves access to ExoPlayer's live audio session ID so
+phone volume boost is not broken by removing a direct ExoPlayer cast. The native
+control integration check asserts that the session ID is retained.
 
 The 350ms TV batching window changes **when** one accumulated seek occurs, not
 the setting's amount per press, pause intent, absolute chapter/scrub targets or

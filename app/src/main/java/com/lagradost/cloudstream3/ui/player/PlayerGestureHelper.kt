@@ -27,7 +27,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.preference.PreferenceManager
 import com.lagradost.cloudstream3.CommonActivity.keyEventListener
@@ -375,7 +374,7 @@ class PlayerGestureHelper(private val playerView: PlayerView) {
             if (existing != null) {
                 existing.setTargetGain(boost)
             } else {
-                val sessionId = (playerView.exoPlayerView?.player as? ExoPlayer)?.audioSessionId
+                val sessionId = playerView.audioSessionId
                 if (sessionId != null && sessionId != AudioManager.ERROR) {
                     try {
                         loudnessEnhancer = LoudnessEnhancer(sessionId).apply {
