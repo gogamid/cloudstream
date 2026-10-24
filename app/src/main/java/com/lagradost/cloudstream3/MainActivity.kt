@@ -739,6 +739,13 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
 
     private fun handleAppIntent(intent: Intent?) {
         if (intent == null) return
+        // Explicit ADB opt-in/out uses the same persisted switch as Player settings.
+        if (intent.hasExtra("playback_diagnostics")) {
+            PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putBoolean("playback_diagnostics", intent.getBooleanExtra("playback_diagnostics", false))
+                .apply()
+            intent.removeExtra("playback_diagnostics")
+        }
         val str = intent.dataString
         loadCache()
 

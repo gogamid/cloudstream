@@ -813,4 +813,6 @@
         <item quantity="other">%d downloads queued</item>
     </plurals>
     <string name="player_is_live">Live</string>
+    <string name="playback_diagnostics_title">Playback diagnostics</string>
+    <string name="playback_diagnostics_summary">Log buffer, video transfer, decoder and frame-drop diagnostics to ADB logcat. Off by default; does not change playback settings.</string>
 </resources>

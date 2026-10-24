@@ -83,6 +83,12 @@ object SettingsPlayerScreen : SearchableSettings {
             Preference.PreferenceGroup(
                 title = stringResource(R.string.pref_category_player_features),
                 preferenceItems = persistentListOf(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = settings.player.playbackDiagnostics,
+                        title = stringResource(R.string.playback_diagnostics_title),
+                        subtitle = stringResource(R.string.playback_diagnostics_summary),
+                        icon = painterResource(R.drawable.movie_info_24px),
+                    ),
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(R.string.remote_buttons),
                         subtitle = stringResource(R.string.remote_buttons_summary),

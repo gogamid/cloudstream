@@ -155,6 +155,7 @@ class ProviderPreferences(preferences: PreferenceStore) {
 }
 
 class PlayerPreferences(preferences: PreferenceStore) {
+    val playbackDiagnostics = preferences.getBoolean("playback_diagnostics", false)
     val episodeSync = preferences.getBoolean("episode_sync_enabled_key", true)
     val defaultPlayer = preferences.getString("player_default_key", "")
     val limitPlayerTitle = preferences.getInt("prefer_limit_title_key", 0)

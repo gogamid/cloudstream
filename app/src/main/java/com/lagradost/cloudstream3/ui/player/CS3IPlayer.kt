@@ -37,9 +37,11 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
@@ -65,6 +67,8 @@ import androidx.media3.exoplayer.source.ClippingMediaSource
 import androidx.media3.exoplayer.source.ConcatenatingMediaSource
 import androidx.media3.exoplayer.source.ConcatenatingMediaSource2
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.text.TextOutput
@@ -309,9 +313,47 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
     }
 
     private val checkpointHandler = Handler(Looper.getMainLooper())
+    private var diagnosticNetworkBytes = java.util.concurrent.atomic.AtomicLong()
+    private var diagnosticNetworkTransfers = java.util.concurrent.atomic.AtomicInteger()
+    private var diagnosticLastBytes = 0L
+    private var diagnosticLastTimeMs = 0L
+
+    private fun playbackDiagnostic(message: () -> String) {
+        val context = subtitleContext ?: return
+        if (PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean("playback_diagnostics", false)) {
+            // Never pass source URLs, request headers, subtitle text or exception messages here.
+            Log.i("CSPlaybackDebug", message())
+        }
+    }
+
+    private fun logPlaybackSnapshot(reason: String) {
+        val exo = exoPlayer ?: return
+        playbackDiagnostic {
+            val format = exo.videoFormat
+            val runtime = Runtime.getRuntime()
+            val now = android.os.SystemClock.elapsedRealtime()
+            val bytes = diagnosticNetworkBytes.get()
+            val elapsed = now - diagnosticLastTimeMs
+            val rate = if (diagnosticLastTimeMs > 0 && elapsed > 0)
+                (bytes - diagnosticLastBytes) * 8_000 / elapsed else -1L
+            diagnosticLastBytes = bytes
+            diagnosticLastTimeMs = now
+            "event=$reason state=${exo.playbackState} playWhenReady=${exo.playWhenReady}" +
+                " playing=${exo.isPlaying} loading=${exo.isLoading} positionMs=${exo.currentPosition}" +
+                " bufferedMs=${exo.totalBufferedDuration} speed=${exo.playbackParameters.speed}" +
+                " mime=${format?.sampleMimeType} width=${format?.width} height=${format?.height}" +
+                " fps=${format?.frameRate} bitrate=${format?.bitrate}" +
+                " networkBytes=$bytes networkBitsPerSecond=$rate sampleMs=$elapsed" +
+                " activeNetworkTransfers=${diagnosticNetworkTransfers.get()}" +
+                " heapBytes=${runtime.totalMemory() - runtime.freeMemory()}"
+        }
+    }
+
     private val checkpointRunnable = object : Runnable {
         override fun run() {
             if (eventHandler == null) return
+            logPlaybackSnapshot("sample")
             exoPlayer?.let { exo ->
                 if (PlaybackCheckpoint.shouldSave(exo.isPlaying, hasUsedFirstRender,
                         exo.currentPosition, exo.contentDuration)) {
@@ -1401,6 +1443,13 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
         val extractorFactor = UpdatedDefaultExtractorsFactory()
             .setFragmentedMp4ExtractorFlags(FragmentedMp4Extractor.FLAG_MERGE_FRAGMENTED_SIDX)
 
+        val bytes = java.util.concurrent.atomic.AtomicLong()
+        val transfers = java.util.concurrent.atomic.AtomicInteger()
+        diagnosticNetworkBytes = bytes
+        diagnosticNetworkTransfers = transfers
+        diagnosticLastBytes = 0L
+        diagnosticLastTimeMs = 0L
+
         // Create an online connection with cache for all online sources
         val dataSourceFactory = if (onlineSource == null) {
             null
@@ -1408,9 +1457,26 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
             if (simpleCache == null)
                 simpleCache = getCache(context, simpleCacheSize)
 
+            // Counters belong to this backend: late callbacks from a released source
+            // cannot change the replacement player's diagnostics. Count upstream bytes
+            // only, not disk-cache reads; never inspect URLs or headers.
+            val transferListener = object : TransferListener {
+                override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+                override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+                    if (isNetwork) transfers.incrementAndGet()
+                }
+                override fun onBytesTransferred(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean, bytesTransferred: Int) {
+                    if (isNetwork) bytes.addAndGet(bytesTransferred.toLong())
+                }
+                override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+                    if (isNetwork) transfers.decrementAndGet()
+                }
+            }
             val cacheFactory = CacheDataSource.Factory().apply {
                 simpleCache?.let { setCache(it) }
-                setUpstreamDataSourceFactory(onlineSource)
+                setUpstreamDataSourceFactory(DataSource.Factory {
+                    onlineSource.createDataSource().apply { addTransferListener(transferListener) }
+                })
             }
             cacheFactory
         }
@@ -2107,6 +2173,78 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
     }
 
     private val tracksAnalyticsListener = object : AnalyticsListener {
+
+        override fun onPlaybackStateChanged(eventTime: AnalyticsListener.EventTime, state: Int) {
+            logPlaybackSnapshot("state")
+        }
+
+        override fun onPositionDiscontinuity(
+            eventTime: AnalyticsListener.EventTime,
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            logPlaybackSnapshot("discontinuity-$reason")
+        }
+
+        override fun onBandwidthEstimate(
+            eventTime: AnalyticsListener.EventTime,
+            totalLoadTimeMs: Int,
+            totalBytesLoaded: Long,
+            bitrateEstimate: Long
+        ) {
+            playbackDiagnostic {
+                "event=network-sample elapsedMs=$totalLoadTimeMs bytes=$totalBytesLoaded" +
+                    " estimateBitsPerSecond=$bitrateEstimate"
+            }
+        }
+
+        override fun onVideoDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long
+        ) {
+            playbackDiagnostic { "event=video-decoder name=$decoderName initMs=$initializationDurationMs" }
+        }
+
+        override fun onAudioDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long
+        ) {
+            playbackDiagnostic { "event=audio-decoder name=$decoderName initMs=$initializationDurationMs" }
+        }
+
+        override fun onDroppedVideoFrames(
+            eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long
+        ) {
+            playbackDiagnostic { "event=dropped-frames count=$droppedFrames elapsedMs=$elapsedMs" }
+            logPlaybackSnapshot("dropped-frames")
+        }
+
+        override fun onLoadError(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            error: java.io.IOException,
+            wasCanceled: Boolean
+        ) {
+            playbackDiagnostic {
+                "event=load-error task=${loadEventInfo.loadTaskId} type=${mediaLoadData.dataType}" +
+                    " track=${mediaLoadData.trackType} bytes=${loadEventInfo.bytesLoaded}" +
+                    " elapsedMs=${loadEventInfo.loadDurationMs} canceled=$wasCanceled" +
+                    " error=${error.javaClass.simpleName}" +
+                    " httpStatus=${(error as? HttpDataSource.InvalidResponseCodeException)?.responseCode}"
+            }
+            logPlaybackSnapshot("load-error")
+        }
+
+        override fun onPlayerError(eventTime: AnalyticsListener.EventTime, error: PlaybackException) {
+            playbackDiagnostic { "event=player-error code=${error.errorCode}" }
+            logPlaybackSnapshot("player-error")
+        }
 
         override fun onVideoInputFormatChanged(
             eventTime: AnalyticsListener.EventTime,

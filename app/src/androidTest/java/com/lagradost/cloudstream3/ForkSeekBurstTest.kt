@@ -124,6 +124,47 @@ class ForkSeekBurstTest {
         }
     }
 
+    @Test fun diagnosticsCanBeEnabledAndDisabledDuringRealPlaybackWithoutReload() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val preferences = PreferenceManager.getDefaultSharedPreferences(instrumentation.targetContext)
+        val key = "playback_diagnostics"
+        val original = preferences.all[key] as? Boolean
+        fun logs(): String = android.os.ParcelFileDescriptor.AutoCloseInputStream(
+            instrumentation.uiAutomation.executeShellCommand(
+                "logcat -d --pid=${android.os.Process.myPid()} -s CSPlaybackDebug:I '*:S'"
+            )
+        ).bufferedReader().use { it.readText() }
+        try {
+            assertTrue(preferences.edit().putBoolean(key, false).commit())
+            Fixture().use { f ->
+                val before = logs()
+                main { f.nativePlayer.seekTo(7_000) }
+                f.ready()
+                assertEquals(before, logs())
+                assertTrue(preferences.edit().putBoolean(key, true).commit())
+                main { f.nativePlayer.seekTo(3_000) }
+                f.ready()
+                val enabled = logs()
+                assertTrue(enabled.length > before.length)
+                assertTrue(enabled.contains("bufferedMs="))
+                assertFalse(enabled.contains("file://"))
+                assertFalse(enabled.contains("seek-burst-"))
+                assertTrue(preferences.edit().putBoolean(key, false).commit())
+                main { f.nativePlayer.seekTo(8_000) }
+                f.ready()
+                assertEquals(enabled, logs())
+                main {
+                    assertFalse(f.player.getPlayWhenReady())
+                    assertEquals(8_000.0, (f.player.getPosition() ?: -1).toDouble(), 100.0)
+                }
+            }
+        } finally {
+            assertTrue(preferences.edit().apply {
+                if (original == null) remove(key) else putBoolean(key, original)
+            }.commit())
+        }
+    }
+
     @Test fun mappedRewindUsesSavedFiveSecondAmountNotThirty() = withSeekSettings {
         Fixture().use { f ->
             main {

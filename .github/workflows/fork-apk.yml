@@ -176,7 +176,7 @@ jobs:
             adb shell am instrument -w -r -e class com.lagradost.cloudstream3.ForkComposeInputTest,com.lagradost.cloudstream3.ForkComposePreferenceRetryTest,com.lagradost.cloudstream3.ForkRemoteButtonsTest,com.lagradost.cloudstream3.ForkSeekBurstTest,com.lagradost.cloudstream3.ForkSourceCollectionTest,com.lagradost.cloudstream3.ForkSourceWaitSettingsTest "$(adb shell pm list instrumentation | tr -d '\r' | awk '/^instrumentation:com.lagradost.cloudstream3/ { sub(/^instrumentation:/, "", $1); print $1; exit }')" | tee compose-input-results.txt
             adb logcat -d > compose-input-logcat.txt
             adb shell dumpsys window windows > compose-input-windows.txt
-            grep -q 'OK (22 tests)' compose-input-results.txt
+            grep -q 'OK (24 tests)' compose-input-results.txt
       - name: Upload emulator diagnostics
         if: always()
         uses: actions/upload-artifact@v7
