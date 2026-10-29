@@ -9,16 +9,28 @@ import android.content.ContextWrapper
 import android.content.pm.ProviderInfo
 import android.database.MatrixCursor
 import android.net.Uri
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.preference.PreferenceManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.tvprovider.media.tv.TvContractCompat
 import androidx.tvprovider.media.tv.WatchNextProgram
+import com.lagradost.cloudstream3.ui.home.HomeViewModel
+import com.lagradost.cloudstream3.ui.settings.Globals.updateTv
 import com.lagradost.cloudstream3.utils.AppContextUtils.addProgramsToContinueWatching
+import com.lagradost.cloudstream3.utils.DOWNLOAD_HEADER_CACHE
+import com.lagradost.cloudstream3.utils.DataStore.removeKey
+import com.lagradost.cloudstream3.utils.DataStore.setKey
 import com.lagradost.cloudstream3.utils.DataStoreHelper
 import com.lagradost.cloudstream3.utils.DataStoreHelper.PosDur
 import com.lagradost.cloudstream3.utils.DataStoreHelper.ResumeWatchingResult
 import com.lagradost.cloudstream3.utils.DataStoreHelper.removeLastWatched
 import com.lagradost.cloudstream3.utils.DataStoreHelper.setLastWatched
+import com.lagradost.cloudstream3.utils.downloader.DownloadObjects.DownloadHeaderCached
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -166,5 +178,59 @@ class ForkWatchNextTest {
         context.addProgramsToContinueWatching(listOf(series), oldGeneration)
         assertEquals(rows.keys, programs(context.contentResolver).keys)
         assertEquals("Movie", programs(context.contentResolver).values.single().title)
+    }
+
+    @Test fun completedProfileChangeRefreshesHomeAfterTheEarlierBookmarkRefreshIsInvalidated() = fixture {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val preferences = PreferenceManager.getDefaultSharedPreferences(target)
+        val layoutKey = target.getString(R.string.app_layout_key)
+        val previousLayout = preferences.all[layoutKey] as? Int
+        // Exercise Home's profile event without asking the phone emulator for a TV system provider.
+        preferences.edit().putInt(layoutKey, 0).commit()
+        target.updateTv()
+        val store = ViewModelStore()
+        val first = CountDownLatch(1)
+        val second = CountDownLatch(1)
+        val observer = Observer<List<SearchResponse>> { cards ->
+            when (cards.singleOrNull()?.name) {
+                "Westworld" -> first.countDown()
+                "Movie" -> second.countDown()
+            }
+        }
+        var model: HomeViewModel? = null
+        try {
+            target.setKey(DOWNLOAD_HEADER_CACHE, "101", DownloadHeaderCached(
+                "Watch Next fixture", "https://example.invalid/101", TvType.TvSeries,
+                "Westworld", null, 0, 101))
+            target.setKey(DOWNLOAD_HEADER_CACHE, "202", DownloadHeaderCached(
+                "Watch Next fixture", "https://example.invalid/202", TvType.Movie,
+                "Movie", null, 0, 202))
+            setLastWatched(101, -1008, 8, 3, updateTime = 1_700_000_090_000)
+            DataStoreHelper.selectedKeyIndex = 9002
+            setLastWatched(202, 202, null, null, updateTime = 1_600_000_000_000)
+            DataStoreHelper.selectedKeyIndex = 9001
+            instrumentation.runOnMainSync {
+                val home = ViewModelProvider(store, ViewModelProvider.NewInstanceFactory())[HomeViewModel::class.java]
+                model = home
+                home.resumeWatching.observeForever(observer)
+                home.reloadStored()
+            }
+            assertTrue("Initial profile did not load", first.await(10, TimeUnit.SECONDS))
+            instrumentation.runOnMainSync {
+                DataStoreHelper.setAccount(DataStoreHelper.Account(9002, "Watch Next test", defaultImageIndex = 0), false)
+                MainActivity.reloadAccountEvent(true)
+            }
+            assertTrue("Home retained the previous profile's resume list", second.await(10, TimeUnit.SECONDS))
+        } finally {
+            instrumentation.runOnMainSync {
+                model?.resumeWatching?.removeObserver(observer)
+                store.clear()
+            }
+            listOf("101", "202").forEach { target.removeKey(DOWNLOAD_HEADER_CACHE, it) }
+            preferences.edit().apply {
+                if (previousLayout == null) remove(layoutKey) else putInt(layoutKey, previousLayout)
+            }.commit()
+            target.updateTv()
+        }
     }
 }

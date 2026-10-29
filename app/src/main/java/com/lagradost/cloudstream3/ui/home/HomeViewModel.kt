@@ -449,10 +449,13 @@ class HomeViewModel : ViewModel() {
         loadAndCancel(DataStoreHelper.currentHomePage, true)
     }
 
-    private fun reloadAccount(unused: Boolean = false) {
+    private fun reloadAccount(refreshStored: Boolean = false) {
         _currentAccount.postValue(
             getCurrentAccount()
         )
+        // setAccount advances its generation after the bookmarks event. Refresh again
+        // from the completed account-change event, not that potentially stale snapshot.
+        if (refreshStored) reloadStored()
     }
 
     init {
