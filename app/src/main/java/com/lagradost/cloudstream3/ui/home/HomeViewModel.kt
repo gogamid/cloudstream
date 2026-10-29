@@ -152,11 +152,13 @@ class HomeViewModel : ViewModel() {
     val preview: LiveData<Resource<Pair<Boolean, List<LoadResponse>>>> = _preview
 
     private fun loadResumeWatching() = viewModelScope.launchSafe {
+        val accountGeneration = DataStoreHelper.selectedAccountNumberFlow.value
         val resumeWatchingResult = getResumeWatching()
+        if (accountGeneration != DataStoreHelper.selectedAccountNumberFlow.value) return@launchSafe
         if (isLayout(TV) && resumeWatchingResult != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             ioSafe {
                 // this WILL crash on non tvs, so keep this inside a try catch
-                activity?.addProgramsToContinueWatching(resumeWatchingResult)
+                context?.addProgramsToContinueWatching(resumeWatchingResult, accountGeneration)
             }
         }
         resumeWatchingResult?.let {

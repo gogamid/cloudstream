@@ -151,7 +151,9 @@ object AppContextUtils {
     private fun buildWatchNextProgramUri(
         context: Context,
         card: DataStoreHelper.ResumeWatchingResult,
-        resumeWatching: DownloadObjects.ResumeWatching?
+        resumeWatching: DownloadObjects.ResumeWatching,
+        providerId: String,
+        account: String,
     ): WatchNextProgram {
         val isSeries = card.type?.isMovieType() == false
         val title = if (isSeries) {
@@ -170,13 +172,12 @@ object AppContextUtils {
             .setWatchNextType(TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE)
             .setTitle(title)
             .setPosterArtUri(card.posterUrl?.toUri())
-            .setIntentUri((card.id?.let {
-                "$APP_STRING_RESUME_WATCHING://$it"
-            } ?: card.url).toUri())
-            .setInternalProviderId(card.url)
-            .setLastEngagementTimeUtcMillis(
-                resumeWatching?.updateTime ?: System.currentTimeMillis()
-            )
+            .setIntentUri(card.id?.let {
+                "$APP_STRING_RESUME_WATCHING://$it".toUri().buildUpon()
+                    .appendQueryParameter("account", account).build()
+            } ?: card.url.toUri())
+            .setInternalProviderId(providerId)
+            .setLastEngagementTimeUtcMillis(resumeWatching.updateTime)
 
         card.watchPos?.let {
             builder.setDurationMillis(it.duration.toInt())
@@ -313,10 +314,15 @@ object AppContextUtils {
     @SuppressLint("RestrictedApi")
     @Throws
     @WorkerThread
-    suspend fun Context.addProgramsToContinueWatching(data: List<DataStoreHelper.ResumeWatchingResult>) {
+    suspend fun Context.addProgramsToContinueWatching(
+        data: List<DataStoreHelper.ResumeWatchingResult>,
+        accountGeneration: Int = DataStoreHelper.selectedAccountNumberFlow.value,
+    ) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val context = this
         continueWatchingLock.withLock {
+            if (accountGeneration != DataStoreHelper.selectedAccountNumberFlow.value) return@withLock
+            val account = DataStoreHelper.currentAccount
             // A way to get all last watched timestamps
             val timeStampHashMap = HashMap<Int, DownloadObjects.ResumeWatching>()
             getAllResumeStateIds()?.forEach { id ->
@@ -325,13 +331,18 @@ object AppContextUtils {
             }
 
             val currentProgramIds = data.mapNotNull { episodeInfo ->
+                if (accountGeneration != DataStoreHelper.selectedAccountNumberFlow.value) return@withLock
                 try {
-                    val customId = "${episodeInfo.id}|${episodeInfo.apiName}|${episodeInfo.url}"
+                    // One launcher card per series/movie, even when its resume episode changes.
+                    val customId = "$account|${episodeInfo.parentId}|${episodeInfo.apiName}|${episodeInfo.url}"
+                    val resume = timeStampHashMap[episodeInfo.parentId] ?: return@mapNotNull null
                     val (program, id) = getWatchNextProgramByVideoId(customId, context)
                     val nextProgram = buildWatchNextProgramUri(
                         context,
                         episodeInfo,
-                        timeStampHashMap[episodeInfo.id]
+                        resume,
+                        customId,
+                        account,
                     )
 
                     // If the program is already in the Watch Next row, update it
@@ -351,6 +362,7 @@ object AppContextUtils {
                 }
             }.toSet()
 
+            if (accountGeneration != DataStoreHelper.selectedAccountNumberFlow.value) return@withLock
             val allOldPrograms = getAllWatchNextPrograms(context) - currentProgramIds
 
             // Ensures synced watch next progress by deleting all old programs.

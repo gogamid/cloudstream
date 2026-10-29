@@ -371,13 +371,17 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
                             )
                         )
                     } else if (safeURI(str)?.scheme == APP_STRING_RESUME_WATCHING) {
-                        val id =
-                            str.substringAfter("$APP_STRING_RESUME_WATCHING://").toIntOrNull()
-                                ?: return false
+                        val uri = str.toUri()
+                        val id = uri.authority?.toIntOrNull() ?: return false
+                        // Legacy links have no account; new cards must not resume another profile.
+                        val account = uri.getQueryParameter("account")
+                        if (account != null && account != DataStoreHelper.currentAccount) return false
+                        val accountGeneration = DataStoreHelper.selectedAccountNumberFlow.value
                         ioSafe {
                             val resumeWatchingCard =
                                 HomeViewModel.getResumeWatching()?.firstOrNull { it.id == id }
                                     ?: return@ioSafe
+                            if (accountGeneration != DataStoreHelper.selectedAccountNumberFlow.value) return@ioSafe
                             activity.loadSearchResult(
                                 resumeWatchingCard,
                                 START_ACTION_RESUME_LATEST
@@ -667,6 +671,14 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
             }
         } catch (e: Exception) {
             logError(e)
+        }
+    }
+
+    override fun onStop() {
+        // Fragment pause/stop saves playback progress before the launcher reads Watch Next.
+        super.onStop()
+        if (isLayout(TV)) {
+            ViewModelProvider(this)[HomeViewModel::class.java].reloadStored()
         }
     }
 
