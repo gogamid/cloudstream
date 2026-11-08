@@ -722,8 +722,9 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
             val factory = if (subtitle.origin == SubtitleOrigin.DOWNLOADED_FILE) {
                 ctx.createOfflineSource()
             } else {
-                val interceptor = currentLink?.let { getApiFromNameNull(it.source)?.getVideoInterceptor(it) }
-                createOnlineSource(subtitle.headers, interceptor)
+                // A video interceptor may rewrite URLs/decrypt video responses.
+                // Independent subtitle providers must use their own URL/headers.
+                SubtitleRequestFactory(app.baseClient, subtitle.headers, USER_AGENT)
             }
             if (!externalSubtitles.select(subtitle, factory, retry = request?.userInitiated == true)) {
                 currentSubtitles = externalSubtitles.currentTrack ?: externalFallbackSubtitle

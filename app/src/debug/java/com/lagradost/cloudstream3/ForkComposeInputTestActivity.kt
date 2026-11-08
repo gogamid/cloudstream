@@ -60,6 +60,7 @@ class ForkComposeInputTestActivity : ComponentActivity() {
                             "retry" -> RetryPreference()
                             "source-wait" -> SourceLoadingPreference("source_startup_wait_seconds")
                             "source-count" -> SourceLoadingPreference("source_auto_start_count")
+                            "source-collection" -> SourceCollectionPreferences()
                             "playback-diagnostics" -> PlaybackDiagnosticsPreference()
                             "disabled", "unrelated" -> OtherDialog(mode)
                             else -> Editor(mode == "settings-search")
@@ -107,6 +108,24 @@ class ForkComposeInputTestActivity : ComponentActivity() {
             .filterIsInstance<com.mihon.presentation.settings.Preference.PreferenceItem.SliderPreference>()
             .single { it.preference.key() == key }
         com.mihon.presentation.settings.PreferenceScreen(items = listOf(item))
+        SideEffect { ready.set(true) }
+    }
+
+    @Composable
+    private fun SourceCollectionPreferences() {
+        val items = com.lagradost.cloudstream3.ui.settings.SettingsPlayerScreen.getPreferences()
+            .filterIsInstance<com.mihon.presentation.settings.Preference.PreferenceGroup>()
+            .flatMap { it.preferenceItems }
+            .filter {
+                when (it) {
+                    is com.mihon.presentation.settings.Preference.PreferenceItem.SliderPreference ->
+                        it.preference.key() == "source_auto_start_wait_seconds"
+                    is com.mihon.presentation.settings.Preference.PreferenceItem.SwitchPreference ->
+                        it.preference.key() == "remember_series_source"
+                    else -> false
+                }
+            }
+        com.mihon.presentation.settings.PreferenceScreen(items = items)
         SideEffect { ready.set(true) }
     }
 

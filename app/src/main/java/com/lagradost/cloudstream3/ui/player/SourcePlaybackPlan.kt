@@ -46,32 +46,33 @@ internal class SourcePlaybackPlan<T>(private val keyOf: (T) -> Any? = { it }) {
     private data class Ranked<T>(val candidate: Candidate<T>, val failures: Int,
                                  val manualMatch: Int, val workingMatch: Int)
 
-    fun ranked(candidates: List<Candidate<T>>, preferences: SeriesSourcePreferences): List<Candidate<T>> =
+    fun ranked(candidates: List<Candidate<T>>, preferences: SeriesSourcePreferences,
+               rememberSource: Boolean = false): List<Candidate<T>> =
         candidates.filter { it.allowed && keyOf(it.id) !in attempted }.distinctBy { keyOf(it.id) }
             .map { candidate ->
                 Ranked(candidate,
                     candidate.video?.family()?.let { familyFailures[it] } ?: 0,
-                    candidate.video?.let { preferences.video?.match(it) } ?: 0,
-                    candidate.video?.let { preferences.lastWorkingVideo?.match(it) } ?: 0)
+                    candidate.video?.takeIf { rememberSource }?.let { preferences.video?.match(it) } ?: 0,
+                    candidate.video?.takeIf { rememberSource }?.let { preferences.lastWorkingVideo?.match(it) } ?: 0)
             }.sortedWith(compareBy<Ranked<T>> { it.failures }
-                .thenByDescending { it.manualMatch }.thenByDescending { it.workingMatch }
-                .thenByDescending { it.candidate.priority })
+                .thenByDescending { it.candidate.priority }
+                .thenByDescending { it.manualMatch }.thenByDescending { it.workingMatch })
             .map { it.candidate }
 
     /** Same visible, deduplicated source identities used for ranking and the Skip count. */
     fun usableCount(candidates: List<Candidate<T>>): Int = candidates.asSequence()
         .filter { it.allowed }.map { keyOf(it.id) }.distinct().count()
 
-    /** Start at completion, explicit Skip, or the configured usable-source count.
-     * Zero disables count-based startup. Priorities never imply Skip; neither
-     * manual nor count-based startup marks collection complete or stops extraction.
+    /** Start at completion, explicit Skip, the usable-source count, or collection timeout.
+     * Zero disables count-based startup. Priorities never imply Skip; early
+     * startup never marks collection complete or stops extraction.
      */
     fun ready(candidates: List<Candidate<T>>, collecting: Boolean, canSkip: Boolean,
-              autoStartAfter: Int = DEFAULT_AUTO_START_COUNT): Boolean {
+              autoStartAfter: Int = DEFAULT_AUTO_START_COUNT, waitExpired: Boolean = false): Boolean {
         if (candidates.none { it.allowed && keyOf(it.id) !in attempted }) return false
         if (!collecting) return true
         if (!canSkip) return false
-        if (skipRequested) return true
+        if (skipRequested || waitExpired) return true
         val threshold = if (autoStartAfter >= 0) autoStartAfter else DEFAULT_AUTO_START_COUNT
         return threshold > 0 && usableCount(candidates) >= threshold
     }

@@ -129,6 +129,21 @@ object SettingsPlayerScreen : SearchableSettings {
                     ),
 
                     Preference.PreferenceItem.SliderPreference(
+                        preference = settings.player.sourceAutoStartWaitSeconds,
+                        title = stringResource(R.string.source_auto_start_wait_title),
+                        subtitle = stringResource(R.string.source_auto_start_wait_summary),
+                        icon = painterResource(R.drawable.hourglass_24),
+                        valueRange = 0..120,
+                    ),
+
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = settings.player.rememberSeriesSource,
+                        title = stringResource(R.string.remember_series_source_title),
+                        subtitle = stringResource(R.string.remember_series_source_summary),
+                        icon = painterResource(R.drawable.skip_next_24px),
+                    ),
+
+                    Preference.PreferenceItem.SliderPreference(
                         preference = settings.player.sourceStartupWaitSeconds,
                         title = stringResource(R.string.source_startup_wait_title),
                         subtitle = stringResource(R.string.source_startup_wait_summary),

@@ -2,6 +2,7 @@ package com.lagradost.cloudstream3.ui.discover
 
 import com.lagradost.cloudstream3.ui.player.SeriesSourcePreferences
 import com.lagradost.cloudstream3.ui.player.SourcePlaybackPlan
+import com.lagradost.cloudstream3.ui.player.SourceStartupTimeout
 import com.lagradost.cloudstream3.utils.BackupUtils.isTransferable
 import org.junit.Assert.*
 import org.junit.Test
@@ -106,13 +107,15 @@ class SourceCountAutoStartTest {
         assertFalse(plan.ready(links(600), true, true, autoStartAfter = Int.MAX_VALUE))
     }
 
-    @Test fun `saved manual source still wins ranking when count triggers playback`() {
+    @Test fun `opted in saved source breaks a priority tie when count triggers playback`() {
         val video = SeriesSourcePreferences.Video("Saved", "Mirror", 1080, "VIDEO")
-        val saved = SourcePlaybackPlan.Candidate("saved", video, priority = 1)
+        val saved = SourcePlaybackPlan.Candidate("saved", video, priority = 100)
         val candidates = links(49) + saved
         val plan = SourcePlaybackPlan<String>()
         assertTrue(plan.ready(candidates, true, true))
-        assertEquals("saved", plan.ranked(candidates, SeriesSourcePreferences(video = video)).first().id)
+        assertEquals("source-1", plan.ranked(candidates, SeriesSourcePreferences(video = video)).first().id)
+        assertEquals("saved", plan.ranked(candidates, SeriesSourcePreferences(video = video),
+            rememberSource = true).first().id)
     }
 
     @Test fun `empty or all hidden result never starts even when threshold is one`() {
@@ -124,5 +127,41 @@ class SourceCountAutoStartTest {
 
     @Test fun `count setting remains backed up and restorable`() {
         assertTrue("source_auto_start_count".isTransferable())
+        assertTrue("source_auto_start_wait_seconds".isTransferable())
+        assertTrue("remember_series_source".isTransferable())
+    }
+
+    @Test fun `count or foreground collection time can independently start playback`() {
+        for (seconds in listOf(5, 10, 15)) {
+            val plan = SourcePlaybackPlan<String>()
+            val timeout = SourceStartupTimeout(true, seconds * 1_000L)
+            var expired = timeout.tick(seconds * 1_000L - 1, true, false)
+            assertFalse(plan.ready(links(3), true, true, 4, expired))
+            assertTrue(plan.ready(links(4), true, true, 4, expired))
+            // Background/dialog time must not exhaust the final millisecond.
+            expired = timeout.tick(600_000, false, false)
+            assertFalse(plan.ready(links(3), true, true, 4, expired))
+            expired = timeout.tick(1, true, false)
+            assertTrue(plan.ready(links(3), true, true, 4, expired))
+            assertTrue(plan.ready(links(3), true, true, 0, expired))
+            assertFalse(plan.skipRequested)
+            assertFalse(plan.ready(links(3), true, false, 4, expired))
+            assertFalse(plan.ready(emptyList(), true, true, 4, expired))
+            assertFalse(plan.ready(links(3, allowed = false), true, true, 4, expired))
+        }
+    }
+
+    @Test fun `disabled time still allows count completion or Skip and does not affect next episode`() {
+        val plan = SourcePlaybackPlan<String>()
+        val disabled = SourceStartupTimeout(true, 0)
+        val expired = disabled.tick(Long.MAX_VALUE, true, false)
+        assertFalse(plan.ready(links(100), true, true, 0, expired))
+        assertTrue(plan.ready(links(100), true, true, 100, expired))
+        assertTrue(plan.ready(links(3), false, true, 0, expired))
+        plan.requestSkip(true)
+        assertTrue(plan.ready(links(3), true, true, 0, expired))
+        val next = SourceStartupTimeout(true, 15_000)
+        assertFalse(SourcePlaybackPlan<String>().ready(links(3), true, true, 0,
+            next.tick(14_999, true, false)))
     }
 }

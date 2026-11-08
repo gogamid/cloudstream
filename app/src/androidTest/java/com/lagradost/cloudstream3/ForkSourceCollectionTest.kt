@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.mvvm.Resource
 import com.lagradost.cloudstream3.ui.player.ExtractorUri
 import com.lagradost.cloudstream3.ui.player.PlayerGeneratorViewModel
 import com.lagradost.cloudstream3.ui.player.SourcePlaybackPlan
+import com.lagradost.cloudstream3.ui.player.SourceStartupTimeout
 import com.lagradost.cloudstream3.ui.player.sourceAutoStartCount
 import com.lagradost.cloudstream4.AppSettings
 import com.lagradost.cloudstream3.ui.player.SubtitleData
@@ -71,7 +72,7 @@ class ForkSourceCollectionTest {
         fail(message)
     }
 
-    private fun collection(skip: Boolean) {
+    private fun collection(skip: Boolean, timed: Boolean = false) {
         val store = ViewModelStore()
         val model = PlayerGeneratorViewModel()
         val generator = DelayedGenerator()
@@ -91,6 +92,15 @@ class ForkSourceCollectionTest {
                     assertTrue(plan.requestSkip(canSkip = true))
                     assertTrue(plan.ready(candidates(), collecting = true, canSkip = true))
                     // Readiness/Skip must not fake completion or cancel the provider.
+                    assertTrue(model.state.loading is Resource.Loading)
+                }
+                if (timed) {
+                    val timeout = SourceStartupTimeout(true, 15_000)
+                    assertFalse(plan.ready(candidates(), true, true,
+                        waitExpired = timeout.tick(14_999, true, false)))
+                    assertTrue(plan.ready(candidates(), true, true,
+                        waitExpired = timeout.tick(1, true, false)))
+                    assertFalse(plan.skipRequested)
                     assertTrue(model.state.loading is Resource.Loading)
                 }
                 generator.finishCollection.complete(Unit)
@@ -162,4 +172,5 @@ class ForkSourceCollectionTest {
 
     @Test fun noSkipWaitsForCompleteCollectionDespiteHighPriorityFirstSource() = collection(skip = false)
     @Test fun explicitSkipLeavesCollectionRunningAndLateSourcesAvailable() = collection(skip = true)
+    @Test fun collectionTimeLimitLeavesExtractionRunningAndLateSourcesAvailable() = collection(skip = false, timed = true)
 }

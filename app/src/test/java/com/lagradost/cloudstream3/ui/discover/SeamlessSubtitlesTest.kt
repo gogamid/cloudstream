@@ -3,12 +3,33 @@ package com.lagradost.cloudstream3.ui.discover
 import com.lagradost.cloudstream3.ui.player.ExternalSubtitleCache
 import com.lagradost.cloudstream3.ui.player.ExternalSubtitleLimits
 import com.lagradost.cloudstream3.ui.player.SubtitleSelectionSession
+import com.lagradost.cloudstream3.ui.player.SubtitleCallFactory
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.util.concurrent.CancellationException
 
 class SeamlessSubtitlesTest {
+    @Test fun `cancel aborts existing and late registered HTTP calls only for that selection`() {
+        val client = OkHttpClient()
+        val old = SubtitleCallFactory(client)
+        val newest = SubtitleCallFactory(client)
+        val request = Request.Builder().url("https://subtitle.test/track.srt").build()
+        val alreadyRegistered = old.newCall(request)
+        old.cancel()
+        val registeredAfterCancel = old.newCall(request)
+        val current = newest.newCall(request)
+        assertTrue(alreadyRegistered.isCanceled())
+        assertTrue(registeredAfterCancel.isCanceled())
+        assertFalse(current.isCanceled())
+        old.cancel() // Cancellation is idempotent and never cancels another selection.
+        assertFalse(current.isCanceled())
+        newest.cancel()
+        assertTrue(current.isCanceled())
+    }
+
     @Test fun `rapid A B C requests only publish C`() {
         val state = SubtitleSelectionSession()
         val a = state.request("A")

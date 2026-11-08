@@ -40,10 +40,15 @@ internal class ExternalSubtitleController(
     private val failedIds = mutableSetOf<String>()
     private var job: Job? = null
     private var notifyFailure = false
+    private var requestFactory: SubtitleRequestFactory? = null
     private val loadingSources = ConcurrentHashMap<Long, DataSource>()
 
     private fun cancelLoad() {
         job?.cancel()
+        // Registered on main before dispatching work. This also cancels a call
+        // created later by a worker that has not reached DataSource.open yet.
+        requestFactory?.cancel()
+        requestFactory = null
         // Close canceled network/file reads off main, without waiting for a read
         // timeout or blocking the video/UI thread. The loader's use block also
         // closes its stream; DataSource implementations tolerate repeated close.
@@ -115,11 +120,13 @@ internal class ExternalSubtitleController(
             }
             return true
         }
+        requestFactory = factory as? SubtitleRequestFactory
         launchLoad(track, token) {
+            val context = kotlinx.coroutines.currentCoroutineContext()
+            context.ensureActive()
             val source = factory.createDataSource()
             loadingSources[token] = source
             try {
-                val context = kotlinx.coroutines.currentCoroutineContext()
                 DataSourceInputStream(source, DataSpec.Builder().setUri(track.getFixedUrl()).build()).use { input ->
                     ExternalSubtitleLimits.read(input) { context.ensureActive() }
                 }

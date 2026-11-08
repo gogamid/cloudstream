@@ -1,6 +1,7 @@
 package com.lagradost.cloudstream3
 
 import android.content.Intent
+import android.graphics.Bitmap
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -16,11 +17,13 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.lagradost.cloudstream3.ui.player.SourceStartupTimeout
 import com.lagradost.cloudstream3.ui.player.sourceStartupWaitMs
 import com.lagradost.cloudstream3.ui.player.sourceAutoStartCount
+import com.lagradost.cloudstream3.ui.player.sourceAutoStartWaitMs
 import com.lagradost.cloudstream4.AppSettings
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
 /** Real active settings UI -> stored preference -> production startup-budget adapter. */
 @RunWith(AndroidJUnit4::class)
@@ -57,12 +60,19 @@ class ForkSourceWaitSettingsTest {
     private fun isolatedPreference(block: () -> Unit) {
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
         val settings = AppSettings(context).player
-        val keys = listOf(settings.sourceStartupWaitSeconds.key(), settings.sourceAutoStartCount.key())
+        val keys = listOf(settings.sourceStartupWaitSeconds.key(), settings.sourceAutoStartCount.key(),
+            settings.sourceAutoStartWaitSeconds.key(), settings.rememberSeriesSource.key())
         val original = keys.associateWith { preferences.all[it] }
         assertTrue(preferences.edit().apply { keys.forEach { remove(it) } }.commit())
         try { block() } finally {
             assertTrue(preferences.edit().apply {
-                original.forEach { (key, value) -> if (value == null) remove(key) else putInt(key, value as Int) }
+                original.forEach { (key, value) ->
+                    when (value) {
+                        null -> remove(key)
+                        is Boolean -> putBoolean(key, value)
+                        is Int -> putInt(key, value)
+                    }
+                }
             }.commit())
         }
     }
@@ -132,5 +142,53 @@ class ForkSourceWaitSettingsTest {
         assertTrue(updated.tick(1, true, false))
         val manual = SourceStartupTimeout(false, sourceStartupWaitMs(context))
         assertFalse(manual.tick(Long.MAX_VALUE, true, false))
+    }
+
+    @Test fun collectionWaitAndSourceMemoryDefaultPersistAndDisableIndependently() = isolatedPreference {
+        val settings = AppSettings(context).player
+        assertEquals(15_000L, sourceAutoStartWaitMs(context))
+        assertFalse(settings.rememberSeriesSource.get())
+        val slider = SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)
+        fun capture(name: String) {
+            compose.waitForIdle()
+            val directory = File(context.getExternalFilesDir(null), "source-settings").apply { mkdirs() }
+            val image = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+            File(directory, "$name.png").outputStream().use {
+                assertTrue(image.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }
+            image.recycle()
+        }
+        ActivityScenario.launch<ForkComposeInputTestActivity>(
+            Intent(context, ForkComposeInputTestActivity::class.java).putExtra("mode", "source-collection")
+        ).use { scenario ->
+            compose.onNodeWithText(context.getString(R.string.source_auto_start_wait_title)).assertIsDisplayed()
+            val memory = compose.onNodeWithText(context.getString(R.string.remember_series_source_title))
+            memory.assertIsDisplayed()
+            capture("default")
+            compose.onNode(slider).performSemanticsAction(SemanticsActions.SetProgress) { it(10f) }
+            memory.performClick()
+            compose.waitUntil(timeoutMillis = 15_000) {
+                sourceAutoStartWaitMs(context) == 10_000L && settings.rememberSeriesSource.get()
+            }
+            scenario.recreate()
+            compose.waitForIdle()
+            assertEquals(10f, compose.onNode(slider).fetchSemanticsNode()
+                .config[SemanticsProperties.ProgressBarRangeInfo].current, 0.001f)
+            assertTrue(AppSettings(context).player.rememberSeriesSource.get())
+            capture("custom-enabled")
+            compose.onNode(slider).performSemanticsAction(SemanticsActions.SetProgress) { it(0f) }
+            memory.performClick()
+            compose.waitUntil(timeoutMillis = 15_000) {
+                sourceAutoStartWaitMs(context) == 0L && !settings.rememberSeriesSource.get()
+            }
+            capture("disabled")
+            assertEquals(50, sourceAutoStartCount(context))
+            assertEquals(5_000L, sourceStartupWaitMs(context))
+            // Restored valid values beyond the slider are respected, not rewritten.
+            settings.sourceAutoStartWaitSeconds.set(600)
+            assertEquals(600_000L, sourceAutoStartWaitMs(context))
+            settings.sourceAutoStartWaitSeconds.set(-1)
+            assertEquals(15_000L, sourceAutoStartWaitMs(context))
+        }
     }
 }

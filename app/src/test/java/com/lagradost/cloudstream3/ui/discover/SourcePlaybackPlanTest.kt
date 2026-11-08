@@ -18,16 +18,17 @@ class SourcePlaybackPlanTest {
         // These full-collection regressions exercise the explicit disabled-count mode.
         plan.ready(candidates, collecting, canSkip, autoStartAfter = 0)
 
-    @Test fun `saved choice still wins but does not skip collecting other mirrors`() {
+    @Test fun `opted in saved choice breaks priority ties but does not skip collection`() {
         val plan = SourcePlaybackPlan<String>()
         val preference = SeriesSourcePreferences(video = video())
-        val early = candidate("early", video("Other"), 20)
+        val early = candidate("early", video("Other"), 1)
         assertFalse(ready(plan, listOf(early)))
         val saved = candidate("saved", video(name = "Mirror S01E02 1080p"), 1)
         val links = listOf(early, saved)
         assertFalse(ready(plan, links))
         assertTrue(ready(plan, links, collecting = false))
-        assertEquals("saved", plan.ranked(links, preference).first().id)
+        assertEquals("early", plan.ranked(links, preference).first().id)
+        assertEquals("saved", plan.ranked(links, preference, rememberSource = true).first().id)
     }
 
     @Test fun `even priority ten or much higher cannot imply Skip`() {
@@ -39,7 +40,7 @@ class SourcePlaybackPlanTest {
         }
     }
 
-    @Test fun `weak provider match retains preferred quality after complete collection`() {
+    @Test fun `profile priority beats remembered quality even when memory is enabled`() {
         val plan = SourcePlaybackPlan<String>()
         val prefs = SeriesSourcePreferences(video = video(name = "Old filename", host = null))
         val sameQuality = candidate("1080", video(name = "New filename", host = "new.example"), 1)
@@ -47,7 +48,10 @@ class SourcePlaybackPlanTest {
         val links = listOf(differentQuality, sameQuality)
         assertFalse(ready(plan, links))
         assertTrue(ready(plan, links, collecting = false))
-        assertEquals("1080", plan.ranked(links, prefs).first().id)
+        assertEquals("2160", plan.ranked(links, prefs, rememberSource = true).first().id)
+        // Switching profiles can reverse the preference; do not hardcode resolution order.
+        assertEquals("1080", plan.ranked(listOf(differentQuality.copy(priority = 1),
+            sameQuality.copy(priority = 20)), prefs, rememberSource = true).first().id)
     }
 
     @Test fun `each arriving source remains collecting until provider completion`() {
@@ -120,26 +124,32 @@ class SourcePlaybackPlanTest {
         val prefs = SeriesSourcePreferences(video = video())
         val first = candidate("one")
         val variant = candidate("variant", video(quality = 720))
-        val other = candidate("other", video("Other", host = "other.example"), 1)
+        val other = candidate("other", video("Other", host = "other.example"), 5)
         plan.attempted(first.id)
         plan.failed(first.id, first.video)
         plan.failed(first.id, first.video) // Duplicate errors must not count twice.
-        val ranked = plan.ranked(listOf(first, variant, other), prefs)
+        val ranked = plan.ranked(listOf(first, variant, other), prefs, rememberSource = true)
         assertEquals(listOf("other", "variant"), ranked.map { it.id })
         plan.failed("other-failed-url", other.video)
         // One failure per family is now tied. Duplicating the first error must
         // not add another penalty and defeat the explicit preference.
-        assertEquals("variant", plan.ranked(listOf(variant, other), prefs).first().id)
+        assertEquals("variant", plan.ranked(listOf(variant, other), prefs, rememberSource = true).first().id)
     }
 
-    @Test fun `automatic working hint never replaces available manual preference`() {
+    @Test fun `working and manual hints are opt in and cannot override profile priority`() {
         val manual = video("Manual")
         val working = video("Working")
         val prefs = SeriesSourcePreferences(video = manual, lastWorkingVideo = working)
-        val links = listOf(candidate("working", working, 50), candidate("manual", manual, 1))
-        assertEquals("manual", SourcePlaybackPlan<String>().ranked(links, prefs).first().id)
+        val links = listOf(candidate("working", working, 1), candidate("manual", manual, 1))
+        assertEquals("working", SourcePlaybackPlan<String>().ranked(links, prefs).first().id)
+        assertEquals("manual", SourcePlaybackPlan<String>().ranked(links, prefs, rememberSource = true).first().id)
         assertEquals("working", SourcePlaybackPlan<String>().ranked(links,
-            prefs.copy(video = null)).first().id)
+            prefs.copy(video = null), rememberSource = true).first().id)
+        assertEquals("working", SourcePlaybackPlan<String>().ranked(listOf(
+            links.first().copy(priority = 50), links.last()), prefs, rememberSource = true).first().id)
+        assertEquals("manual", SourcePlaybackPlan<String>().ranked(listOf(
+            links.first(), links.last().copy(priority = 50)), prefs.copy(video = null),
+            rememberSource = true).first().id)
     }
 
     @Test fun `refreshed objects with the same episode URL are not retried`() {

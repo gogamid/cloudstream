@@ -12,3 +12,9 @@ internal fun sourceAutoStartCount(context: Context): Int =
     AppSettings(context).player.sourceAutoStartCount.get().let {
         if (it >= 0) it else SourcePlaybackPlan.DEFAULT_AUTO_START_COUNT
     }
+
+/** Collection time limit, not the per-video startup budget. Zero disables it. */
+internal fun sourceAutoStartWaitMs(context: Context): Long =
+    AppSettings(context).player.sourceAutoStartWaitSeconds.get().let {
+        (if (it >= 0) it else 15).toLong() * 1_000L
+    }
