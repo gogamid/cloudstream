@@ -1580,9 +1580,11 @@ constructor(
     override var quality: SearchQuality? = null,
     override var posterHeaders: Map<String, String>? = null,
     override var score: Score? = null,
-    override var genres: List<String>? = null,
-    override var originalLanguage: String? = null,
-) : SearchResponse
+) : SearchResponse {
+    // Keep discovery metadata out of the primary constructor to preserve the plugin ABI.
+    override var genres: List<String>? = null
+    override var originalLanguage: String? = null
+}
 
 fun AnimeSearchResponse.addDubStatus(status: DubStatus, episodes: Int? = null) {
     this.dubStatus = dubStatus?.also { it.add(status) } ?: mutableSetOf(status)
@@ -1677,9 +1679,11 @@ constructor(
     override var quality: SearchQuality? = null,
     override var posterHeaders: Map<String, String>? = null,
     override var score: Score? = null,
-    override var genres: List<String>? = null,
-    override var originalLanguage: String? = null,
 ) : SearchResponse {
+    // Keep discovery metadata out of the primary constructor to preserve the plugin ABI.
+    override var genres: List<String>? = null
+    override var originalLanguage: String? = null
+
     @Suppress("DEPRECATION_ERROR")
     @Deprecated(
         "Use newMovieSearchResponse",
@@ -1752,9 +1756,11 @@ constructor(
     override var quality: SearchQuality? = null,
     override var posterHeaders: Map<String, String>? = null,
     override var score: Score? = null,
-    override var genres: List<String>? = null,
-    override var originalLanguage: String? = null,
 ) : SearchResponse {
+    // Keep discovery metadata out of the primary constructor to preserve the plugin ABI.
+    override var genres: List<String>? = null
+    override var originalLanguage: String? = null
+
     @Suppress("DEPRECATION_ERROR")
     @Deprecated(
         "Use newTvSeriesSearchResponse",

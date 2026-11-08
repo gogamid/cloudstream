@@ -75,9 +75,9 @@ internal data class TmdbTitle(
     val usable: Boolean
         get() = adult != true && (id ?: 0) > 0 && displayTitle.isNotBlank()
 
-    /** First three catalogue names for the poster overlay; unknown IDs are dropped. */
+    /** Preserve every known genre for filtering; only the poster overlay truncates them. */
     fun resolveGenres(catalogue: Map<Int, String>): List<String>? =
-        genreIds?.asSequence()?.distinct()?.mapNotNull { catalogue[it] }?.take(3)?.toList()
+        genreIds?.asSequence()?.distinct()?.mapNotNull { catalogue[it] }?.toList()
             ?.takeIf { it.isNotEmpty() }
 
     fun toSearchResponse(

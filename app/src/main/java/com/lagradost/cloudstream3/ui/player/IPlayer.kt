@@ -273,6 +273,8 @@ interface IPlayer {
     fun onPause()
     fun onResume(context: Context)
 
+    /** Stop the failed backend while waiting for sources, retaining logical play/pause intent. */
+    fun stop()
     fun release()
 
     /** Get if player is actually used */

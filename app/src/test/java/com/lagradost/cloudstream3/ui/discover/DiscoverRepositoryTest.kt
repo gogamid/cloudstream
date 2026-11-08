@@ -248,7 +248,7 @@ class DiscoverRepositoryTest {
     }
 
     @Test
-    fun `cards carry year and first three catalogue genre names`() {
+    fun `cards retain all distinct known genres including a fourth genre for filtering`() {
         val catalogue = mapOf(28 to "Action", 12 to "Adventure", 878 to "Sci-Fi", 35 to "Comedy")
         val card = TmdbTitle(
             id = 1, title = "Epic", releaseDate = "2024-05-01",
@@ -256,7 +256,7 @@ class DiscoverRepositoryTest {
             voteAverage = 8.0, voteCount = 100,
         ).toSearchResponse("movie", catalogue)
         assertEquals(2024, card.year)
-        assertEquals(listOf("Action", "Adventure", "Sci-Fi"), card.genres)
+        assertEquals(listOf("Action", "Adventure", "Sci-Fi", "Comedy"), card.genres)
     }
 
     @Test

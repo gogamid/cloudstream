@@ -82,10 +82,10 @@ class ForkSeekBurstTest {
                 throw error
             }
         }
-        fun load() {
-            player.loadPlayer(context, sameEpisode = false, link = null,
+        fun load(sameEpisode: Boolean = false, autoPlay: Boolean? = false) {
+            player.loadPlayer(context, sameEpisode = sameEpisode, link = null,
                 data = ExtractorUri(Uri.fromFile(file), "Seek fixture"), startPosition = 10_000,
-                subtitles = emptySet(), subtitle = null, autoPlay = false, preview = false)
+                subtitles = emptySet(), subtitle = null, autoPlay = autoPlay, preview = false)
         }
         fun await(message: String, condition: () -> Boolean) {
             val end = SystemClock.elapsedRealtime() + 15_000
@@ -310,6 +310,37 @@ class ForkSeekBurstTest {
                 assertEquals(10_000.0, (f.player.getPosition() ?: -1).toDouble(), 100.0)
                 assertFalse(f.player.getPlayWhenReady())
                 assertFalse(f.player.isInteractiveSeeking())
+            }
+        }
+    }
+
+    @Test fun waitingForLateSourceRetainsPlayIntentButUiAndNativePauseStillWin() {
+        // Native pause is the same path used by PlayerView/MediaSession controls.
+        for (pause in listOf("none", "ui", "native")) {
+            Fixture().use { f ->
+                main { f.player.handleEvent(CSPlayerEvent.Play) }
+                f.await("Audio clock did not start") { f.player.isActuallyPlaying() }
+                main {
+                    f.player.stop()
+                    assertEquals(Player.STATE_IDLE, f.nativePlayer.playbackState)
+                    assertFalse(f.player.isActuallyPlaying())
+                    assertTrue(f.player.getPlayWhenReady())
+                }
+                // Give the stopped backend's callbacks a turn before the late source arrives.
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+                main {
+                    when (pause) {
+                        "ui" -> f.player.handleEvent(CSPlayerEvent.Pause)
+                        "native" -> f.nativePlayer.pause()
+                    }
+                    assertEquals(pause == "none", f.player.getPlayWhenReady())
+                    f.load(sameEpisode = true, autoPlay = true)
+                }
+                f.ready()
+                main {
+                    assertEquals(pause == "none", f.player.getPlayWhenReady())
+                    assertEquals(pause == "none", f.nativePlayer.playWhenReady)
+                }
             }
         }
     }

@@ -865,6 +865,17 @@ class CS3IPlayer(private val tvSeekEnabled: () -> Boolean = { isLayout(TV) }) : 
             reloadPlayer(context)
     }
 
+    override fun stop() {
+        val intendedPlayback = getPlayWhenReady()
+        seekBurst.cancel(restorePlayback = false)
+        exoPlayer?.apply {
+            // Media3 stop keeps the position and playWhenReady, unlike Pause.
+            stop()
+            // A pending seek may have temporarily paused the backend.
+            playWhenReady = intendedPlayback
+        }
+    }
+
     override fun release() {
         imageGenerator.release()
         releasePlayer()

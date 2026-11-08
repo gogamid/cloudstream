@@ -2028,8 +2028,9 @@ class GeneratorPlayer : FullScreenPlayer() {
         if (nextLink == null) {
             if (collectingSources()) {
                 awaitingSourceFallback = true
-                // Do not close the player while useful sources are still arriving.
-                player.handleEvent(CSPlayerEvent.Pause, PlayerEventSource.UI)
+                // Stop the failed source, not the user's playback intent. Late
+                // replacements must resume unless the user explicitly pauses.
+                player.stop()
             } else noLinksFound()
             return
         }

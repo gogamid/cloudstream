@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.ui.player.SubtitleOrigin
 import com.lagradost.cloudstream3.ui.player.SubtitleRequestFactory
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
@@ -44,7 +45,10 @@ class ForkSubtitleLatestWinsTest {
         MimeTypes.APPLICATION_SUBRIP, mapOf("X-Subtitle" to name), "en",
     )
 
-    private class FakeCall(private val req: Request, private val blocked: Boolean) : Call {
+    // Delegate tag storage (including computed tags) to the current OkHttp API.
+    // execute/enqueue remain deterministic below; the delegate never sends a request.
+    private class FakeCall(private val req: Request, private val blocked: Boolean) :
+        Call by OkHttpClient().newCall(req) {
         val entered = CountDownLatch(1)
         private val cancelledSignal = CountDownLatch(1)
         private var callback: Callback? = null
