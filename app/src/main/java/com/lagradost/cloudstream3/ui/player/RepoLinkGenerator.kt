@@ -1,29 +1,23 @@
 package com.lagradost.cloudstream3.ui.player
 
+import android.os.SystemClock
 import android.util.Log
 import com.lagradost.cloudstream3.APIHolder.getApiFromNameNull
-import com.lagradost.cloudstream3.APIHolder.unixTime
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.ui.APIRepository
 import com.lagradost.cloudstream3.ui.result.ResultEpisode
-import com.lagradost.cloudstream3.ui.settings.Globals.TV
-import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.utils.AppContextUtils.html
+import com.lagradost.cloudstream3.utils.DataStoreHelper
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-
-data class Cache(
-    val linkCache: MutableSet<ExtractorLink>,
-    val subtitleCache: MutableSet<SubtitleData>,
-    /** When it was last updated */
-    @Volatile var lastCachedTimestamp: Long = unixTime,
-    /** If it has fully loaded */
-    var saturated: Boolean,
-)
 
 class RepoLinkGenerator(
     episodes: List<ResultEpisode>,
@@ -31,19 +25,90 @@ class RepoLinkGenerator(
 ) : VideoGenerator<ResultEpisode>(episodes) {
     companion object {
         const val TAG = "RepoLink"
-        val cache: HashMap<Pair<String, Int>, Cache> =
-            hashMapOf()
+
+        // Provider instance identity also separates plugin reloads; the opaque request separates
+        // providers whose ID stays the same when their episode locator changes.
+        private data class Key(
+            val account: Int,
+            val provider: MainAPI,
+            val episode: Int,
+            val data: String,
+            val casting: Boolean,
+        )
+
+        private val collections = SourceCollectionStore<Key, ExtractorLink, SubtitleData>(
+            CoroutineScope(SupervisorJob() + Dispatchers.IO),
+            SystemClock::elapsedRealtime,
+            { it.url },
+            { it.url },
+        )
+
+        internal fun clearSourceCollections() = collections.clear()
+        internal fun discardUnusedSourceCollections() = collections.discardUnused()
+
+        internal suspend fun warm(
+            target: SourceWarmupTarget,
+            account: Int = DataStoreHelper.selectedAccountNumberFlow.value,
+        ) {
+            if (account != DataStoreHelper.selectedAccountNumberFlow.value) return
+            val lease = collect(target.apiName, target.episodeId, target.data, false, false, true, account)
+            try {
+                lease.state.first { it.result != null }
+            } finally {
+                lease.close()
+            }
+        }
+
+        private fun collect(
+            apiName: String,
+            episode: Int,
+            data: String,
+            casting: Boolean,
+            refresh: Boolean,
+            speculative: Boolean,
+            account: Int = DataStoreHelper.selectedAccountNumberFlow.value,
+        ): SourceCollectionStore<Key, ExtractorLink, SubtitleData>.Lease {
+            val provider = getApiFromNameNull(apiName) ?: error("This provider does not exist")
+            val key = Key(account, provider, episode, data, casting)
+            return collections.acquire(key, speculative, refresh) { sink ->
+                if (account != DataStoreHelper.selectedAccountNumberFlow.value) return@acquire false
+                val started = SystemClock.elapsedRealtime()
+                Log.i(TAG, "Source extraction: started; speculative=$speculative; episode=$episode")
+                val suffixes = ConcurrentHashMap<String, AtomicInteger>()
+                val seenSubtitles = ConcurrentHashMap.newKeySet<String>()
+                val hasVideo = AtomicBoolean(sink.initial.links.isNotEmpty())
+                sink.initial.subtitles.forEach {
+                    seenSubtitles.add(it.url)
+                    suffixes.getOrPut(it.originalName) { AtomicInteger() }.incrementAndGet()
+                }
+                val result = APIRepository(provider).loadLinks(
+                    data,
+                    isCasting = casting,
+                    subtitleCallback = { file ->
+                        val subtitle = PlayerSubtitleHelper.getSubtitleData(file)
+                        if (subtitle.url.isNotBlank() && seenSubtitles.add(subtitle.url)) {
+                            val name = subtitle.originalName.html().toString().trim()
+                            val suffix = suffixes.getOrPut(name) { AtomicInteger() }.incrementAndGet()
+                            sink.subtitle(subtitle.copy(originalName = name, nameSuffix = "$suffix"))
+                        }
+                    },
+                    callback = { link ->
+                        if (link.url.isNotBlank()) {
+                            hasVideo.set(true)
+                            sink.link(link)
+                        }
+                    },
+                )
+                Log.i(TAG, "Source extraction: finished after ${SystemClock.elapsedRealtime() - started}ms; success=$result")
+                result && hasVideo.get()
+            }
+        }
     }
 
     override val hasCache = true
     override val canSkipLoading = true
     override fun getId(index: Int): Int? = videos.getOrNull(index)?.id
 
-    // this is a simple array that is used to instantly load links if they are already loaded
-    //var linkCache = Array<Set<ExtractorLink>>(size = episodes.size, init = { setOf() })
-    //var subsCache = Array<Set<SubtitleData>>(size = episodes.size, init = { setOf() })
-
-    @Throws
     override suspend fun generateLinks(
         clearCache: Boolean,
         sourceTypes: Set<ExtractorLinkType>,
@@ -53,121 +118,26 @@ class RepoLinkGenerator(
         isCasting: Boolean,
     ): Boolean {
         val current = videos.getOrNull(offset) ?: return false
-
-        val currentCache = synchronized(cache) {
-            if (isLayout(TV)) {
-                PlaybackResourcePolicy.episodeCacheEvictions(
-                    cache.mapValues { it.value.lastCachedTimestamp }, current.apiName to current.id, unixTime
-                ).forEach { cache.remove(it) }
+        val lease = collect(current.apiName, current.id, current.data, isCasting, clearCache, false)
+        Log.i(TAG, "Source collection: player attached; cached=${lease.state.value.links.size}; " +
+            "collecting=${lease.state.value.result == null}")
+        val links = HashSet<String>()
+        val subtitles = HashSet<String>()
+        try {
+            // Snapshots contain the entire collection, so StateFlow conflation cannot lose a source.
+            val completed = lease.state.first { snapshot ->
+                snapshot.links.forEach { link ->
+                    if (link.type in sourceTypes && links.add(link.url)) callback(link to null)
+                }
+                snapshot.subtitles.forEach { subtitle ->
+                    if (subtitles.add(subtitle.url)) subtitleCallback(subtitle)
+                }
+                snapshot.result != null
             }
-            cache[current.apiName to current.id] ?: Cache(
-                mutableSetOf(),
-                mutableSetOf(),
-                unixTime,
-                false
-            ).also {
-                cache[current.apiName to current.id] = it
-            }
+            return completed.result == true
+        } finally {
+            // Cancelling next-episode/title interest must not cancel a player using this job.
+            lease.close()
         }
-
-        // These act as a general filter to prevent duplication of links or names
-        // Avoid any possible ConcurrentModificationException
-        val currentLinksUrls = ConcurrentHashMap.newKeySet<String>()
-        val currentSubsUrls = ConcurrentHashMap.newKeySet<String>()
-        // Use atomics as otherwise we get race conditions when incrementing, while rare it did actually happen!
-        val lastCountedSuffix = ConcurrentHashMap<String, AtomicInteger>()
-
-        synchronized(currentCache) {
-            val outdatedCache =
-                unixTime - currentCache.lastCachedTimestamp > 60 * 20 // 20 minutes
-
-            if (outdatedCache || clearCache) {
-                currentCache.linkCache.clear()
-                currentCache.subtitleCache.clear()
-                currentCache.saturated = false
-            } else if (currentCache.linkCache.isNotEmpty()) {
-                Log.d(
-                    TAG,
-                    "Resumed previous loading from ${unixTime - currentCache.lastCachedTimestamp}s ago"
-                )
-            }
-
-            // call all callbacks
-            currentCache.linkCache.forEach { link ->
-                currentLinksUrls.add(link.url)
-                if (sourceTypes.contains(link.type)) {
-                    callback(link to null)
-                }
-            }
-
-            currentCache.subtitleCache.forEach { sub ->
-                currentSubsUrls.add(sub.url)
-                lastCountedSuffix.getOrPut(sub.originalName) { AtomicInteger(0) }.incrementAndGet()
-                subtitleCallback(sub)
-            }
-
-            // this stops all execution if links are cached
-            // no extra get requests
-            if (currentCache.saturated) {
-                return true
-            }
-        }
-
-        val result = APIRepository(
-            getApiFromNameNull(current.apiName) ?: throw Exception("This provider does not exist")
-        ).loadLinks(
-            current.data,
-            isCasting = isCasting,
-            subtitleCallback = { file ->
-                Log.d(TAG, "Loaded SubtitleFile: $file")
-                val correctFile = PlayerSubtitleHelper.getSubtitleData(file)
-                if (correctFile.url.isBlank() || !currentSubsUrls.add(correctFile.url)) {
-                    return@loadLinks
-                }
-
-                // this part makes sure that all names are unique for UX
-                val nameDecoded = correctFile.originalName.html().toString()
-                    .trim() // `%3Ch1%3Esub%20name…` → `<h1>sub name…` → `sub name…`
-                val suffixCount =
-                    lastCountedSuffix.getOrPut(nameDecoded) { AtomicInteger(0) }.incrementAndGet()
-
-                val updatedFile =
-                    correctFile.copy(originalName = nameDecoded, nameSuffix = "$suffixCount")
-
-                synchronized(currentCache) {
-                    if (currentCache.subtitleCache.add(updatedFile)) {
-                        subtitleCallback(updatedFile)
-                        currentCache.lastCachedTimestamp = unixTime
-                    }
-                }
-            },
-            callback = { link ->
-                Log.d(TAG, "Loaded ExtractorLink: $link")
-                if (link.url.isBlank() || !currentLinksUrls.add(link.url)) {
-                    return@loadLinks
-                }
-
-                synchronized(currentCache) {
-                    if (currentCache.linkCache.add(link)) {
-                        if (sourceTypes.contains(link.type)) {
-                            callback(Pair(link, null))
-                        }
-
-                        currentCache.linkCache.add(link)
-                        currentCache.lastCachedTimestamp = unixTime
-                    }
-                }
-            }
-        )
-
-        // A canceled preload must not mark a partial cache as fully collected,
-        // even when a provider/API wrapper swallowed its cancellation exception.
-        currentCoroutineContext().ensureActive()
-        synchronized(currentCache) {
-            currentCache.saturated = result && currentCache.linkCache.isNotEmpty()
-            currentCache.lastCachedTimestamp = unixTime
-        }
-
-        return result
     }
 }

@@ -392,8 +392,11 @@ class PlayerGeneratorViewModel : ViewModel() {
     fun loadLinks(sourceTypes: Set<ExtractorLinkType> = LOADTYPE_INAPP) {
         Log.i(TAG, "loadLinks with generator=$generator and index=$episodeIndex")
         currentJob?.cancel()
-        preloadJob?.cancel()
-        currentLoadingEpisodeId = null
+        // Keep the matching next-episode lease alive until the player joins its extraction.
+        if (forceClearCache || currentLoadingEpisodeId != generator?.getId(episodeIndex)) {
+            preloadJob?.cancel()
+            currentLoadingEpisodeId = null
+        }
         val index = episodeIndex
 
         // Clear old data and reset the state

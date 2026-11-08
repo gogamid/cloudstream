@@ -61,7 +61,8 @@ class ForkSourceWaitSettingsTest {
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
         val settings = AppSettings(context).player
         val keys = listOf(settings.sourceStartupWaitSeconds.key(), settings.sourceAutoStartCount.key(),
-            settings.sourceAutoStartWaitSeconds.key(), settings.rememberSeriesSource.key())
+            settings.sourceAutoStartWaitSeconds.key(), settings.rememberSeriesSource.key(),
+            settings.sourceWarmupEnabled.key())
         val original = keys.associateWith { preferences.all[it] }
         assertTrue(preferences.edit().apply { keys.forEach { remove(it) } }.commit())
         try { block() } finally {
@@ -148,6 +149,7 @@ class ForkSourceWaitSettingsTest {
         val settings = AppSettings(context).player
         assertEquals(15_000L, sourceAutoStartWaitMs(context))
         assertFalse(settings.rememberSeriesSource.get())
+        assertFalse(settings.sourceWarmupEnabled.get())
         val slider = SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)
         fun capture(name: String) {
             compose.waitForIdle()
@@ -163,23 +165,30 @@ class ForkSourceWaitSettingsTest {
         ).use { scenario ->
             compose.onNodeWithText(context.getString(R.string.source_auto_start_wait_title)).assertIsDisplayed()
             val memory = compose.onNodeWithText(context.getString(R.string.remember_series_source_title))
+            val warmup = compose.onNodeWithText(context.getString(R.string.source_warmup_title))
             memory.assertIsDisplayed()
+            warmup.assertIsDisplayed()
             capture("default")
             compose.onNode(slider).performSemanticsAction(SemanticsActions.SetProgress) { it(10f) }
             memory.performClick()
+            warmup.performClick()
             compose.waitUntil(timeoutMillis = 15_000) {
-                sourceAutoStartWaitMs(context) == 10_000L && settings.rememberSeriesSource.get()
+                sourceAutoStartWaitMs(context) == 10_000L && settings.rememberSeriesSource.get() &&
+                    settings.sourceWarmupEnabled.get()
             }
             scenario.recreate()
             compose.waitForIdle()
             assertEquals(10f, compose.onNode(slider).fetchSemanticsNode()
                 .config[SemanticsProperties.ProgressBarRangeInfo].current, 0.001f)
             assertTrue(AppSettings(context).player.rememberSeriesSource.get())
+            assertTrue(AppSettings(context).player.sourceWarmupEnabled.get())
             capture("custom-enabled")
             compose.onNode(slider).performSemanticsAction(SemanticsActions.SetProgress) { it(0f) }
             memory.performClick()
+            warmup.performClick()
             compose.waitUntil(timeoutMillis = 15_000) {
-                sourceAutoStartWaitMs(context) == 0L && !settings.rememberSeriesSource.get()
+                sourceAutoStartWaitMs(context) == 0L && !settings.rememberSeriesSource.get() &&
+                    !settings.sourceWarmupEnabled.get()
             }
             capture("disabled")
             assertEquals(50, sourceAutoStartCount(context))

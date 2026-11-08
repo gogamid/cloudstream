@@ -4,6 +4,8 @@
     <string name="source_auto_start_count_summary">Start playback when this many usable, distinct video sources arrive OR the collection wait expires. Default: 50. Set to 0 to disable the count limit. Collection completion or manual Skip can start sooner; remaining sources and subtitles keep loading. Only applies to providers supporting early playback.</string>
     <string name="source_auto_start_wait_title">Source collection wait (seconds)</string>
     <string name="source_auto_start_wait_summary">Start with the best available source when this time expires OR the source count is reached. Default: 15 seconds. Set to 0 to disable the time limit; set both limits to 0 to wait for all sources. Dialogs and background time do not count. Extraction continues after playback starts. Only applies to providers supporting early playback; not the timeout for trying each source.</string>
+    <string name="source_warmup_title">Preload sources (experimental)</string>
+    <string name="source_warmup_summary">Collect source links on title pages and for the first two Continue Watching titles while the app is open on an unmetered connection. Play reuses the same extraction. No video buffering or playback checks; your source priorities and startup limits still apply. Off by default.</string>
     <string name="remember_series_source_title">Remember series video source</string>
     <string name="remember_series_source_summary">Prefer the previously chosen or working source for the next episode only when profile priorities are tied. Off by default. Higher-priority qualities and sources still win. Subtitle preferences are remembered independently.</string>
 </resources>
