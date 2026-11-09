@@ -178,7 +178,7 @@ jobs:
             adb shell dumpsys window windows > compose-input-windows.txt
             mkdir -p compose-input-screenshots
             adb shell find /sdcard/Android/data -path '*/files/source-settings/*.png' | tr -d '\r' | while read -r image; do adb pull "$image" compose-input-screenshots/; done
-            grep -q 'OK (34 tests)' compose-input-results.txt
+            grep -q 'OK (35 tests)' compose-input-results.txt
       - name: Upload emulator diagnostics
         if: always()
         uses: actions/upload-artifact@v7

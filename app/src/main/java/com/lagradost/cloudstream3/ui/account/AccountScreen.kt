@@ -144,7 +144,7 @@ object AccountScreen {
                     .padding(contentPadding),
                 horizontalAlignment = Alignment.End
             ) {
-                val (edit, accounts) = FocusRequester.createRefs()
+                val (edit, accounts) = remember { FocusRequester.createRefs() }
 
                 IconButton(
                     onClick = {
@@ -319,7 +319,7 @@ object AccountScreen {
             )
         }
 
-        val (focusRequester) = FocusRequester.createRefs()
+        val focusRequester = remember { FocusRequester() }
         LaunchedEffect(Unit) {
             focusRequester.requestFocus()
         }
@@ -749,7 +749,7 @@ object AccountScreen {
         val innerPadding by animateDpAsState(
             targetValue = if (hasFocus || isLayout(PHONE or EMULATOR)) 0.dp else MaterialTheme.padding.extraSmall,
         )
-        val (focusRequester) = FocusRequester.createRefs()
+        val focusRequester = remember { FocusRequester() }
         LaunchedEffect(Unit) {
             if (selected) {
                 focusRequester.requestFocus()

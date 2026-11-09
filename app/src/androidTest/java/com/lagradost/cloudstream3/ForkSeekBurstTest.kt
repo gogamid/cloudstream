@@ -1,20 +1,32 @@
 package com.lagradost.cloudstream3
 
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.net.Uri
 import android.os.SystemClock
+import android.view.Gravity
+import android.widget.FrameLayout
+import android.widget.ImageView
 import androidx.annotation.OptIn
+import androidx.core.content.ContextCompat
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.preference.PreferenceManager
+import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lagradost.cloudstream3.ui.player.CS3IPlayer
 import com.lagradost.cloudstream3.ui.player.CSPlayerEvent
 import com.lagradost.cloudstream3.ui.player.ErrorEvent
 import com.lagradost.cloudstream3.ui.player.ExtractorUri
+import com.lagradost.cloudstream3.ui.player.CSPlayerLoading
+import com.lagradost.cloudstream3.ui.player.IPlayer
 import com.lagradost.cloudstream3.ui.player.PlayerAttachedEvent
 import com.lagradost.cloudstream3.ui.player.PlayerSeekSettings
+import com.lagradost.cloudstream3.ui.player.PlayerView
 import com.lagradost.cloudstream3.ui.player.SettingsSeekPlayer
 import java.io.File
 import java.nio.ByteBuffer
@@ -41,6 +53,75 @@ class ForkSeekBurstTest {
         var result = false
         main { result = block() }
         return result
+    }
+
+    @Test fun pausePlayAnimationSettlesToTheCurrentPlaybackIcon() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val intent = Intent(context, ForkComposeInputTestActivity::class.java)
+            .putExtra("mode", "player-icon")
+        ActivityScenario.launch<ForkComposeInputTestActivity>(intent).use { scenario ->
+            var playing = false
+            lateinit var view: PlayerView
+            lateinit var icon: ImageView
+            scenario.onActivity { activity ->
+                view = PlayerView(activity)
+                val backend = view.player
+                view.player = object : IPlayer by backend {
+                    override fun getIsPlaying() = playing
+                }
+                view.hasPipModeSupport = false
+                view.setBackgroundColor(Color.BLACK)
+                icon = ImageView(activity)
+                val size = (128 * activity.resources.displayMetrics.density).toInt()
+                view.addView(icon, FrameLayout.LayoutParams(size, size, Gravity.CENTER))
+                view.playerPausePlay = icon
+                activity.setContentView(view)
+            }
+            try {
+                for ((isPlaying, resource, name) in listOf(
+                    Triple(true, R.drawable.netflix_pause, "playing-pause-icon"),
+                    Triple(false, R.drawable.netflix_play, "paused-play-icon")
+                )) {
+                    scenario.onActivity {
+                        playing = isPlaying
+                        view.updateIsPlaying(
+                            if (isPlaying) CSPlayerLoading.IsPaused else CSPlayerLoading.IsPlaying,
+                            if (isPlaying) CSPlayerLoading.IsPlaying else CSPlayerLoading.IsPaused
+                        )
+                    }
+                    Thread.sleep(500) // Both vector animations last 200 ms.
+                    instrumentation.waitForIdleSync()
+                    scenario.onActivity { activity ->
+                        val actual = Bitmap.createBitmap(icon.width, icon.height, Bitmap.Config.ARGB_8888)
+                        val expected = Bitmap.createBitmap(icon.width, icon.height, Bitmap.Config.ARGB_8888)
+                        icon.drawable.setBounds(0, 0, icon.width, icon.height)
+                        icon.drawable.draw(Canvas(actual))
+                        ContextCompat.getDrawable(activity, resource)!!.apply {
+                            setBounds(0, 0, icon.width, icon.height)
+                            draw(Canvas(expected))
+                        }
+                        try {
+                            assertTrue("Animation did not settle to the current $name", actual.sameAs(expected))
+                        } finally {
+                            actual.recycle()
+                            expected.recycle()
+                        }
+                    }
+                    val directory = File(context.getExternalFilesDir(null), "source-settings").apply { mkdirs() }
+                    val screenshot = instrumentation.uiAutomation.takeScreenshot()
+                    try {
+                        File(directory, "$name.png").outputStream().use {
+                            assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
+                        }
+                    } finally {
+                        screenshot.recycle()
+                    }
+                }
+            } finally {
+                scenario.onActivity { view.release() }
+            }
+        }
     }
 
     private inner class Fixture : AutoCloseable {
