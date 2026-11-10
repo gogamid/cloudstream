@@ -66,6 +66,19 @@ class ForkRemoteButtonsTest {
                     RemoteButtonMappings.load(context)[KeyEvent.KEYCODE_6])
                 assertEquals(RemoteButtonMappings.Action.NEXT_SOURCE, RemoteButtonMappings.load(context)[key])
 
+                for ((button, action) in listOf(
+                    KeyEvent.KEYCODE_7 to RemoteButtonMappings.Action.SUBTITLES_EARLIER,
+                    KeyEvent.KEYCODE_8 to RemoteButtonMappings.Action.SUBTITLES_LATER
+                )) {
+                    item(context.getString(R.string.remote_add)).perform(click())
+                    onView(withText(R.string.remote_press_button)).inRoot(isDialog()).check(matches(isDisplayed()))
+                    InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(button)
+                    item(context.getString(action.label)).perform(click())
+                    assertEquals(action, RemoteButtonMappings.load(context)[button])
+                    onView(withText("${RemoteButtonMappings.keyName(button)} → ${context.getString(action.label)}"))
+                        .inRoot(isDialog()).check(matches(isDisplayed()))
+                }
+
                 item(applyRow(apply)).perform(click())
                 item(context.getString(R.string.remote_disabled)).perform(click())
                 assertNull(DialogApplyShortcut.load(context))

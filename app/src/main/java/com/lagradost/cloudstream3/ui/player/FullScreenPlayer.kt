@@ -1343,6 +1343,18 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 else android.widget.Toast.makeText(ctx, R.string.remote_unavailable, android.widget.Toast.LENGTH_SHORT).show()
             }
             RemoteButtonMappings.Action.SUBTITLE_TIMING -> showSubtitleOffsetDialog()
+            RemoteButtonMappings.Action.SUBTITLES_EARLIER,
+            RemoteButtonMappings.Action.SUBTITLES_LATER -> {
+                // The existing sync dialog/backend uses positive = earlier.
+                subtitleDelay += if (action == RemoteButtonMappings.Action.SUBTITLES_EARLIER) 100L else -100L
+                val offset = subtitleDelay
+                val message = when {
+                    offset > 0 -> context?.getString(R.string.remote_subtitles_earlier_total, offset)
+                    offset < 0 -> context?.getString(R.string.remote_subtitles_later_total, -offset)
+                    else -> context?.getString(R.string.subtitle_offset_extra_hint_none_format)
+                }
+                com.lagradost.cloudstream3.CommonActivity.showToast(activity, message)
+            }
             RemoteButtonMappings.Action.TOGGLE_SUBTITLES -> toggleSubtitles()
             RemoteButtonMappings.Action.RUSSIAN_SUBTITLES -> selectSubtitleLanguage("ru")
             RemoteButtonMappings.Action.ENGLISH_SUBTITLES -> selectSubtitleLanguage("en")

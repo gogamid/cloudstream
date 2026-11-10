@@ -20,6 +20,8 @@ internal object RemoteButtonMappings {
         NEXT_EPISODE(R.string.remote_next_episode), PREVIOUS_EPISODE(R.string.remote_previous_episode),
         EPISODES(R.string.remote_episodes), SUBTITLE_SEARCH(R.string.remote_subtitle_search),
         SUBTITLE_TIMING(R.string.remote_subtitle_timing),
+        SUBTITLES_EARLIER(R.string.remote_subtitles_earlier),
+        SUBTITLES_LATER(R.string.remote_subtitles_later),
         TOGGLE_SUBTITLES(R.string.remote_toggle_subtitles),
         RUSSIAN_SUBTITLES(R.string.remote_russian_subtitles),
         ENGLISH_SUBTITLES(R.string.remote_english_subtitles), SOURCES(R.string.remote_sources),

@@ -2,8 +2,8 @@ package com.lagradost.cloudstream3
 
 import android.os.Bundle
 import android.view.View
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Debug-only instrumentation host. Never part of the signed release APK. */
-class ForkComposeInputTestActivity : ComponentActivity() {
+class ForkComposeInputTestActivity : FragmentActivity() {
     val ready = AtomicBoolean(false)
     val applied = AtomicInteger(0)
     val unrelated = AtomicInteger(0)
@@ -46,6 +46,11 @@ class ForkComposeInputTestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val mode = intent.getStringExtra("mode") ?: "tv"
+        if (mode == "player") {
+            // Host the real playback fragment for mapped-key instrumentation.
+            ready.set(true)
+            return
+        }
         if (mode == "remote") {
             com.lagradost.cloudstream3.ui.settings.RemoteButtonsDialog.show(this)
             ready.set(true)

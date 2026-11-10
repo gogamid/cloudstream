@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.SystemClock
 import android.view.Gravity
+import android.view.KeyEvent
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.annotation.OptIn
@@ -27,6 +28,8 @@ import com.lagradost.cloudstream3.ui.player.IPlayer
 import com.lagradost.cloudstream3.ui.player.PlayerAttachedEvent
 import com.lagradost.cloudstream3.ui.player.PlayerSeekSettings
 import com.lagradost.cloudstream3.ui.player.PlayerView
+import com.lagradost.cloudstream3.ui.player.FullScreenPlayer
+import com.lagradost.cloudstream3.ui.player.RemoteButtonMappings
 import com.lagradost.cloudstream3.ui.player.SettingsSeekPlayer
 import java.io.File
 import java.nio.ByteBuffer
@@ -53,6 +56,70 @@ class ForkSeekBurstTest {
         var result = false
         main { result = block() }
         return result
+    }
+
+    @Test fun subtitleTimingMappingsAccumulateWithoutSeekingOrResumingVideo() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val previous = preferences.getStringSet(RemoteButtonMappings.KEY, null)?.toSet()
+        val earlier = KeyEvent.KEYCODE_7
+        val later = KeyEvent.KEYCODE_8
+        RemoteButtonMappings.save(context, earlier, RemoteButtonMappings.Action.SUBTITLES_EARLIER)
+        RemoteButtonMappings.save(context, later, RemoteButtonMappings.Action.SUBTITLES_LATER)
+        try {
+            Fixture().use { fixture ->
+                ActivityScenario.launch<ForkComposeInputTestActivity>(
+                    Intent(context, ForkComposeInputTestActivity::class.java).putExtra("mode", "player")
+                ).use { scenario ->
+                    lateinit var fragment: FullScreenPlayer
+                    scenario.onActivity { activity ->
+                        fragment = FullScreenPlayer()
+                        activity.supportFragmentManager.beginTransaction()
+                            .replace(android.R.id.content, fragment).commitNow()
+                        fragment.player = fixture.player
+                    }
+                    fixture.await("Playback window did not gain focus") {
+                        fixture.player.getSubtitleOffset() == 0L &&
+                            fragment.view?.hasWindowFocus() == true &&
+                            CommonActivity.keyEventListener != null &&
+                            !com.lagradost.cloudstream3.utils.ComposeTextFocus.isTyping
+                    }
+                    InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+                    fun press(key: Int, repeat: Int = 0) {
+                        scenario.onActivity { activity ->
+                            assertTrue(activity.window.decorView.hasWindowFocus())
+                            val now = SystemClock.uptimeMillis()
+                            for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+                                assertTrue(CommonActivity.keyEventListener?.invoke(
+                                    KeyEvent(now, now, action, key, repeat) to false
+                                ) == true)
+                            }
+                        }
+                    }
+                    var position = 0L
+                    main { position = fixture.nativePlayer.currentPosition }
+                    repeat(3) { press(earlier) }
+                    main { assertEquals(300L, fixture.player.getSubtitleOffset()) }
+                    press(earlier, repeat = 1) // A held-key repeat must not count as another press.
+                    main { assertEquals(300L, fixture.player.getSubtitleOffset()) }
+                    repeat(4) { press(later) }
+                    main { assertEquals(-100L, fixture.player.getSubtitleOffset()) }
+                    main { fixture.player.setSubtitleOffset(275L) } // Also respect dialog-set offsets.
+                    repeat(3) { press(later) }
+                    main {
+                        assertEquals(-25L, fixture.player.getSubtitleOffset())
+                        assertEquals(position, fixture.nativePlayer.currentPosition)
+                        assertFalse(fixture.nativePlayer.playWhenReady)
+                        assertEquals(0, fixture.seeks.get())
+                    }
+                }
+            }
+        } finally {
+            assertTrue(preferences.edit().apply {
+                if (previous == null) remove(RemoteButtonMappings.KEY)
+                else putStringSet(RemoteButtonMappings.KEY, previous)
+            }.commit())
+        }
     }
 
     @Test fun pausePlayAnimationSettlesToTheCurrentPlaybackIcon() {
