@@ -86,14 +86,19 @@ class ForkSeekBurstTest {
                     }
                     InstrumentationRegistry.getInstrumentation().waitForIdleSync()
                     fun press(key: Int, repeat: Int = 0) {
-                        scenario.onActivity { activity ->
-                            assertTrue(activity.window.decorView.hasWindowFocus())
+                        // Fullscreen relayout can transfer focus between main-loop turns.
+                        // Wait and dispatch atomically; do not bypass the player's focus guard.
+                        fixture.await("Playback window did not regain focus for key $key") {
+                            if (fragment.activity?.window?.decorView?.hasWindowFocus() != true) {
+                                return@await false
+                            }
                             val now = SystemClock.uptimeMillis()
                             for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
                                 assertTrue(CommonActivity.keyEventListener?.invoke(
                                     KeyEvent(now, now, action, key, repeat) to false
                                 ) == true)
                             }
+                            true
                         }
                     }
                     var position = 0L
