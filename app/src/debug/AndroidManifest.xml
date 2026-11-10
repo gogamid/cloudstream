@@ -1,5 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <activity android:name=".ForkComposeInputTestActivity" android:exported="false" />
+        <!-- Match the real playback host: entering fullscreen must not recreate its player. -->
+        <activity
+            android:name=".ForkComposeInputTestActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode"
+            android:supportsPictureInPicture="true"
+            android:exported="false" />
     </application>
 </manifest>
