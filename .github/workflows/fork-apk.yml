@@ -164,6 +164,10 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 4096 -no-snapshot-save
           script: |
             adb shell settings put secure show_ime_with_hard_keyboard 1
+            # A fresh emulator's fullscreen tutorial owns window focus until acknowledged.
+            # Acknowledge it here, not by bypassing the player's system-overlay input guard.
+            adb shell settings put secure immersive_mode_confirmations confirmed
+            test "$(adb shell settings get secure immersive_mode_confirmations | tr -d '\r')" = confirmed
             adb install -r emulator-app/*.apk
             adb install -r emulator-tests/*.apk
             adb shell input keyevent KEYCODE_WAKEUP
