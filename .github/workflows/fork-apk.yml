@@ -174,10 +174,11 @@ jobs:
             adb logcat -c
             adb shell pm list instrumentation | tee compose-input-instrumentation.txt
             adb shell am instrument -w -r -e class com.lagradost.cloudstream3.ForkComposeInputTest,com.lagradost.cloudstream3.ForkComposePreferenceRetryTest,com.lagradost.cloudstream3.ForkRemoteButtonsTest,com.lagradost.cloudstream3.ForkSeekBurstTest,com.lagradost.cloudstream3.ForkSourceCollectionTest,com.lagradost.cloudstream3.ForkSourceWaitSettingsTest,com.lagradost.cloudstream3.ForkWatchNextTest,com.lagradost.cloudstream3.ForkSubtitleLatestWinsTest "$(adb shell pm list instrumentation | tr -d '\r' | awk '/^instrumentation:com.lagradost.cloudstream3/ { sub(/^instrumentation:/, "", $1); print $1; exit }')" | tee compose-input-results.txt
-            adb logcat -d > compose-input-logcat.txt
+            adb logcat -b main -b system -b crash -b events -d > compose-input-logcat.txt
             adb shell dumpsys window windows > compose-input-windows.txt
             mkdir -p compose-input-screenshots
             adb shell find /sdcard/Android/data -path '*/files/source-settings/*.png' | tr -d '\r' | while read -r image; do adb pull "$image" compose-input-screenshots/; done
+            adb shell find /sdcard/Android/data -path '*/files/source-settings/*.txt' | tr -d '\r' | while read -r report; do adb pull "$report" compose-input-screenshots/; done
             grep -q 'OK (33 tests)' compose-input-results.txt
       - name: Upload emulator diagnostics
         if: always()
@@ -187,5 +188,6 @@ jobs:
           path: |
             compose-input-*.txt
             compose-input-screenshots/*.png
+            compose-input-screenshots/*.txt
           if-no-files-found: ignore
           retention-days: 14

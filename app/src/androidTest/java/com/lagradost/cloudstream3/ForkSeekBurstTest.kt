@@ -247,6 +247,24 @@ class ForkSeekBurstTest {
                 if (read(condition)) return
                 Thread.sleep(25)
             }
+            // Capture before ActivityScenario cleanup replaces the failing window.
+            runCatching {
+                val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+                val directory = File(context.getExternalFilesDir(null), "source-settings").apply { mkdirs() }
+                android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                    automation.executeShellCommand("dumpsys window")
+                ).use { input ->
+                    File(directory, "playback-timeout-windows.txt").outputStream().use { input.copyTo(it) }
+                }
+                val screenshot = automation.takeScreenshot()
+                try {
+                    File(directory, "playback-timeout.png").outputStream().use {
+                        screenshot.compress(Bitmap.CompressFormat.PNG, 100, it)
+                    }
+                } finally {
+                    screenshot.recycle()
+                }
+            }.exceptionOrNull()?.let { android.util.Log.e("ForkSeekBurstTest", "Timeout capture failed", it) }
             fail(message)
         }
         fun ready() {
