@@ -163,7 +163,6 @@ class HomeViewModel : ViewModel() {
         }
         resumeWatchingResult?.let {
             _resumeWatching.postValue(it)
-            com.lagradost.cloudstream3.ui.player.SourceWarmup.home(it, accountGeneration)
         }
     }
 

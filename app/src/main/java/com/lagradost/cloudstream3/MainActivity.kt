@@ -648,7 +648,6 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
         super.onResume()
         afterPluginsLoadedEvent += ::onAllPluginsLoaded
         setActivityInstance(this)
-        com.lagradost.cloudstream3.ui.player.SourceWarmup.foreground(this, true)
         try {
             if (isCastApiAvailable()) {
                 mSessionManager?.addSessionManagerListener(mSessionManagerListener)
@@ -678,15 +677,9 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
     override fun onStop() {
         // Fragment pause/stop saves playback progress before the launcher reads Watch Next.
         super.onStop()
-        com.lagradost.cloudstream3.ui.player.SourceWarmup.foreground(this, false)
         if (isLayout(TV)) {
             ViewModelProvider(this)[HomeViewModel::class.java].reloadStored()
         }
-    }
-
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        com.lagradost.cloudstream3.ui.player.SourceWarmup.stopSpeculation()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
@@ -840,7 +833,6 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
 
     private val pluginsLock = Mutex()
     private fun onAllPluginsLoaded(success: Boolean = false) {
-        com.lagradost.cloudstream3.ui.player.SourceWarmup.invalidate()
         ioSafe {
             pluginsLock.withLock {
                 allProviders.withLock {

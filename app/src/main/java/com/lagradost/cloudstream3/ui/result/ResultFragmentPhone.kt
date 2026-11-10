@@ -412,14 +412,12 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
             playerHostView?.setupKeyEventListener()
         }
         super.onResume()
-        viewModel.warmSelectedEpisode()
         PanelsChildGestureRegionObserver.Provider.get()
             .addGestureRegionsUpdateListener(gestureRegionsListener)
     }
 
     override fun onStop() {
         afterPluginsLoadedEvent -= ::reloadViewModel
-        com.lagradost.cloudstream3.ui.player.SourceWarmup.releaseTitle(viewModel)
         playerHostView?.onStop()
         super.onStop()
     }

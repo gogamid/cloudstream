@@ -137,13 +137,6 @@ object SettingsPlayerScreen : SearchableSettings {
                     ),
 
                     Preference.PreferenceItem.SwitchPreference(
-                        preference = settings.player.sourceWarmupEnabled,
-                        title = stringResource(R.string.source_warmup_title),
-                        subtitle = stringResource(R.string.source_warmup_summary),
-                        icon = painterResource(R.drawable.play_arrow_24px),
-                    ),
-
-                    Preference.PreferenceItem.SwitchPreference(
                         preference = settings.player.rememberSeriesSource,
                         title = stringResource(R.string.remember_series_source_title),
                         subtitle = stringResource(R.string.remember_series_source_summary),

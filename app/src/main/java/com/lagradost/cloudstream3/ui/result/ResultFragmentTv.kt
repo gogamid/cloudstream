@@ -195,12 +195,10 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
         activity?.setNavigationBarColorCompat(R.attr.primaryBlackBackground)
         afterPluginsLoadedEvent += ::reloadViewModel
         super.onResume()
-        viewModel.warmSelectedEpisode()
     }
 
     override fun onStop() {
         afterPluginsLoadedEvent -= ::reloadViewModel
-        com.lagradost.cloudstream3.ui.player.SourceWarmup.releaseTitle(viewModel)
         super.onStop()
     }
 

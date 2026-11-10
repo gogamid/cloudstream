@@ -175,7 +175,6 @@ class PlayerPreferences(preferences: PreferenceStore) {
     // Zero disables count-based startup; collection may still start on its time limit.
     val sourceAutoStartCount = preferences.getInt("source_auto_start_count", 50)
     val sourceAutoStartWaitSeconds = preferences.getInt("source_auto_start_wait_seconds", 15)
-    val sourceWarmupEnabled = preferences.getBoolean("source_warmup_enabled", false)
     val rememberSeriesSource = preferences.getBoolean("remember_series_source", false)
     val skipOpEnabled = preferences.getBoolean("enable_skip_op_from_database", true)
     val autoRotateEnabled = preferences.getBoolean("auto_rotate_video_key", true)

@@ -455,33 +455,10 @@ data class ExtractedTrailerData(
 
 class ResultViewModel2 : ViewModel() {
     private var currentResponse: LoadResponse? = null
-    private val sourceWarmupAccount = DataStoreHelper.selectedAccountNumberFlow.value
     var EPISODE_RANGE_SIZE: Int = 20
     fun clear() {
-        com.lagradost.cloudstream3.ui.player.SourceWarmup.releaseTitle(this)
         currentResponse = null
         _page.postValue(null)
-    }
-
-    fun warmSelectedEpisode() {
-        if (sourceWarmupAccount != DataStoreHelper.selectedAccountNumberFlow.value) return
-        val index = currentIndex ?: return
-        val range = currentRange ?: return
-        val episodes = getEpisodes(index, range)
-        val saved = currentId?.let(::getLastWatched)?.episodeId
-        val episode = episodes.firstOrNull { it.id == saved } ?: episodes.firstOrNull()
-        val target = episode?.takeIf {
-            currentResponse is MovieLoadResponse || currentResponse is TvSeriesLoadResponse ||
-                currentResponse is AnimeLoadResponse
-        }?.let {
-            com.lagradost.cloudstream3.ui.player.SourceWarmupTarget(it.apiName, it.id, it.data)
-        }
-        com.lagradost.cloudstream3.ui.player.SourceWarmup.title(this, target)
-    }
-
-    override fun onCleared() {
-        com.lagradost.cloudstream3.ui.player.SourceWarmup.releaseTitle(this)
-        super.onCleared()
     }
 
     data class EpisodeIndexer(
@@ -2109,8 +2086,6 @@ class ResultViewModel2 : ViewModel() {
 
             RepoLinkGenerator(episodes, page = currentResponse)
         }
-
-        warmSelectedEpisode()
 
         if (isMovie) {
             _sortSelections.postValue(emptyList())

@@ -121,7 +121,7 @@ class ForkComposeInputTestActivity : ComponentActivity() {
                     is com.mihon.presentation.settings.Preference.PreferenceItem.SliderPreference ->
                         it.preference.key() == "source_auto_start_wait_seconds"
                     is com.mihon.presentation.settings.Preference.PreferenceItem.SwitchPreference ->
-                        it.preference.key() in setOf("remember_series_source", "source_warmup_enabled")
+                        it.preference.key() == "remember_series_source"
                     else -> false
                 }
             }

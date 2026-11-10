@@ -18,7 +18,6 @@ import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.safeApiCall
 import com.lagradost.cloudstream3.newSearchResponseList
 import com.lagradost.cloudstream3.utils.Coroutines.atomicListOf
-import com.lagradost.cloudstream3.utils.DataStoreHelper
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
@@ -53,26 +52,22 @@ class APIRepository(val api: MainAPI) {
         data class SavedLoadResponse(
             val unixTime: Long,
             val response: LoadResponse,
-            val hash: Pair<String, String>,
-            val account: Int,
-            val provider: MainAPI,
+            val hash: Pair<String, String>
         )
 
         private val cache = atomicListOf<SavedLoadResponse>()
+
+        init {
+            afterPluginsLoadedEvent += { forceReload ->
+                if (forceReload) cache.clear()
+            }
+        }
+
         private var cacheIndex: Int = 0
         const val CACHE_SIZE = 20
 
         fun getTimeout(desired: Long?): Long {
             return (desired ?: DEFAULT_TIMEOUT).coerceIn(MIN_TIMEOUT, MAX_TIMEOUT)
-        }
-
-        private fun afterPluginsLoaded(forceReload: Boolean) {
-            if (forceReload) cache.clear()
-        }
-
-        init {
-            // One static cache needs one listener, not a retained repository per warmup.
-            afterPluginsLoadedEvent += ::afterPluginsLoaded
         }
     }
 
@@ -90,14 +85,12 @@ class APIRepository(val api: MainAPI) {
                 if (isInvalidData(url)) throw ErrorLoadingException()
                 val fixedUrl = api.fixUrl(url)
                 val lookingForHash = Pair(api.name, fixedUrl)
-                val account = DataStoreHelper.selectedAccountNumberFlow.value
 
                 val cached = cache.withLock {
                     var found: LoadResponse? = null
                     for (item in cache) {
                         // 10 min save
-                        if (item.hash == lookingForHash && item.account == account &&
-                            item.provider === api && (unixTime - item.unixTime) < 60 * 10) {
+                        if (item.hash == lookingForHash && (unixTime - item.unixTime) < 60 * 10) {
                             found = item.response
                             break
                         }
@@ -109,7 +102,7 @@ class APIRepository(val api: MainAPI) {
                 api.load(fixedUrl)?.also { response ->
                     // Remove all blank tags as early as possible
                     response.tags = response.tags?.filter { it.isNotBlank() }
-                    val add = SavedLoadResponse(unixTime, response, lookingForHash, account, api)
+                    val add = SavedLoadResponse(unixTime, response, lookingForHash)
 
                     cache.withLock {
                         if (cache.size > CACHE_SIZE) {
