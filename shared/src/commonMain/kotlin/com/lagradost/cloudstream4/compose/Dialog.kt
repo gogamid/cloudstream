@@ -160,8 +160,8 @@ fun <T> SingleSelectDialog(
                             iconProvider = iconProvider,
                             selectedPainter = selectedPainter,
                             modifier = Modifier.focusProperties {
-                                start = dismissFocus
-                                end = confirmFocus
+                                start = if (dismissText != null) dismissFocus else FocusRequester.Default
+                                end = if (confirmText != null) confirmFocus else FocusRequester.Default
                             }) {
                             if (confirmText == null) {
                                 confirm(key)
@@ -387,8 +387,8 @@ fun <T> MultiSelectDialog(
                             iconProvider = iconProvider,
                             selectedPainter = selectedPainter,
                             modifier = Modifier.focusProperties {
-                                start = dismissFocus
-                                end = confirmFocus
+                                start = if (dismissText != null) dismissFocus else FocusRequester.Default
+                                end = if (confirmText != null) confirmFocus else FocusRequester.Default
                             }
                         ) {
                             if (isSelected) {

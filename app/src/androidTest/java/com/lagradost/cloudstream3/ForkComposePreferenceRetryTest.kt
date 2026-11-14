@@ -2,7 +2,10 @@ package com.lagradost.cloudstream3
 
 import android.content.Intent
 import android.view.KeyEvent
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -23,6 +26,48 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(AndroidJUnit4::class)
 class ForkComposePreferenceRetryTest {
     @get:Rule val compose = createEmptyComposeRule()
+
+    @Test fun selectionDialogsNavigateWithOrWithoutOptionalButtons() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        for (multi in listOf(false, true)) {
+            for (confirm in listOf(false, true)) {
+                for (dismiss in listOf(false, true)) {
+                    ActivityScenario.launch<ForkComposeInputTestActivity>(
+                        Intent(instrumentation.targetContext, ForkComposeInputTestActivity::class.java)
+                            .putExtra("mode", "selection").putExtra("multi", multi)
+                            .putExtra("confirm", confirm).putExtra("dismiss", dismiss)
+                    ).use { scenario ->
+                        fun focusFirst() {
+                            compose.onNodeWithText("First").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+                        }
+                        fun press(key: Int) {
+                            instrumentation.sendKeyDownUpSync(key)
+                            compose.waitForIdle()
+                        }
+                        focusFirst()
+                        press(KeyEvent.KEYCODE_DPAD_LEFT)
+                        if (dismiss) compose.onNodeWithText("Cancel").assertIsFocused()
+                        focusFirst()
+                        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+                        if (confirm) compose.onNodeWithText("Apply").assertIsFocused()
+                        focusFirst()
+                        press(KeyEvent.KEYCODE_DPAD_DOWN)
+                        compose.onNodeWithText("Second").assertIsFocused()
+                        press(KeyEvent.KEYCODE_DPAD_UP)
+                        compose.onNodeWithText("First").assertIsFocused()
+                        press(KeyEvent.KEYCODE_DPAD_CENTER)
+                        if (confirm) {
+                            compose.onNodeWithText("Apply").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+                            press(KeyEvent.KEYCODE_DPAD_CENTER)
+                        } else if (multi) {
+                            press(KeyEvent.KEYCODE_BACK) // Immediate multi-select saves on dismissal.
+                        }
+                        scenario.onActivity { assertEquals(1, it.applied.get()) }
+                    }
+                }
+            }
+        }
+    }
 
     @Test fun rejectedEditorApplyCanRetryAndSuccessfulSaveCannotSubmitAgain() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()

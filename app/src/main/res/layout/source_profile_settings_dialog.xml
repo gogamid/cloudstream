@@ -75,7 +75,7 @@
                     android:layout_width="wrap_content"
                     android:layout_gravity="center_vertical|end"
                     android:nextFocusRight="@id/cancel_btt"
-                    android:nextFocusUp="@id/subtitles_italic"
+                    android:nextFocusUp="@id/profile_hide_error_sources"
                     android:text="@string/sort_apply"
                     android:visibility="visible">
 
@@ -88,7 +88,7 @@
                     android:layout_width="wrap_content"
                     android:layout_gravity="center_vertical|end"
                     android:nextFocusLeft="@id/apply_btt"
-                    android:nextFocusUp="@id/subtitles_remove_captions"
+                    android:nextFocusUp="@id/profile_hide_error_sources"
                     android:text="@string/sort_cancel" />
             </LinearLayout>
         </LinearLayout>

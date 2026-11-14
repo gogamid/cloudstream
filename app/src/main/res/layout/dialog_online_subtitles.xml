@@ -95,9 +95,9 @@
                         android:contentDescription="@string/change_providers_img_des"
                         android:focusable="true"
                         android:nextFocusLeft="@id/year_btt"
-                        android:nextFocusRight="@id/main_search"
-                        android:nextFocusUp="@id/nav_rail_view"
-                        android:nextFocusDown="@id/search_autofit_results"
+                        android:nextFocusRight="@id/cancel_btt"
+                        android:nextFocusUp="@id/year_btt"
+                        android:nextFocusDown="@id/subtitle_adapter"
                         android:src="@drawable/ic_baseline_tune_24"
                         app:tint="?attr/textColor" />
 
@@ -110,7 +110,7 @@
 
                 android:layout_rowWeight="1"
                 android:background="?attr/primaryBlackBackground"
-                android:nextFocusLeft="@id/sort_providers"
+                android:nextFocusLeft="@id/subtitles_search"
                 android:nextFocusRight="@id/cancel_btt"
                 android:requiresFadingEdge="vertical"
                 tools:listfooter="@layout/sort_bottom_footer_add_choice"

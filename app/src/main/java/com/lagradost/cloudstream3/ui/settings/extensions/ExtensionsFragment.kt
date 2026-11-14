@@ -213,6 +213,7 @@ class ExtensionsFragment : BaseFragment<FragmentExtensionsBinding>(
         binding.settingsToolbar.apply {
             val searchItem = menu?.findItem(R.id.search_button)
             val searchView = searchItem?.actionView as? SearchView
+            searchView?.let { com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(it) }
 
             searchItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
                 override fun onMenuItemActionCollapse(p0: MenuItem): Boolean {

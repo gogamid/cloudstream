@@ -37,6 +37,8 @@ class ForkComposeInputTestActivity : FragmentActivity() {
     val unrelated = AtomicInteger(0)
     val leaveFocused = AtomicBoolean(false)
     var dialogView: View? = null
+    var nativeDialog: android.app.Dialog? = null
+    var nativeRoot: View? = null
     private var editorFocus: FocusRequester? = null
     fun focusEditor() { editorFocus?.requestFocus() }
     val typing: Boolean get() = ComposeTextFocus.isTyping
@@ -51,6 +53,28 @@ class ForkComposeInputTestActivity : FragmentActivity() {
             ready.set(true)
             return
         }
+        if (mode == "native-login") {
+            val api = object : com.lagradost.cloudstream3.syncproviders.AuthAPI() {
+                override val name = "Navigation fixture"
+                override val inAppLoginRequirement = com.lagradost.cloudstream3.syncproviders.AuthLoginRequirement(
+                    username = true, email = intent.getBooleanExtra("email", true), server = true, password = true)
+                override val createAccountUrl = if (intent.getBooleanExtra("create", false)) "https://example.invalid" else null
+            }
+            com.lagradost.cloudstream3.ui.settings.SettingsAccount.showAppLogin(
+                this, com.lagradost.cloudstream3.syncproviders.PlainAuthRepo(api))
+            return
+        }
+        if (mode == "native-input") {
+            val root = layoutInflater.inflate(intent.getIntExtra("layout", R.layout.bottom_input_dialog), null)
+            com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(root, dialog = true)
+            nativeRoot = root
+            val builder = androidx.appcompat.app.AlertDialog.Builder(this, R.style.AlertDialogCustom).setView(root)
+            if (intent.getIntExtra("layout", 0) == R.layout.lock_pin_dialog) {
+                builder.setNegativeButton(android.R.string.cancel) { _, _ -> }
+            }
+            nativeDialog = builder.show()
+            return
+        }
         if (mode == "remote") {
             com.lagradost.cloudstream3.ui.settings.RemoteButtonsDialog.show(this)
             ready.set(true)
@@ -63,6 +87,7 @@ class ForkComposeInputTestActivity : FragmentActivity() {
                         when (mode) {
                             "apply" -> ApplyDialog()
                             "retry" -> RetryPreference()
+                            "selection" -> SelectionDialog()
                             "source-wait" -> SourceLoadingPreference("source_startup_wait_seconds")
                             "source-count" -> SourceLoadingPreference("source_auto_start_count")
                             "source-collection" -> SourceCollectionPreferences()
@@ -101,6 +126,30 @@ class ForkComposeInputTestActivity : FragmentActivity() {
         LaunchedEffect(Unit) {
             requester.requestFocus()
             ready.set(true)
+        }
+    }
+
+    @Composable
+    private fun SelectionDialog() {
+        var visible by remember { mutableStateOf(true) }
+        if (!visible) return
+        val entries = linkedMapOf(1 to "First", 2 to "Second")
+        val confirm = if (intent.getBooleanExtra("confirm", false)) "Apply" else null
+        val dismiss = if (intent.getBooleanExtra("dismiss", false)) "Cancel" else null
+        if (intent.getBooleanExtra("multi", false)) {
+            MultiSelectDialog(
+                entries = entries, selectedKeys = emptySet<Int>(),
+                confirmText = confirm, dismissText = dismiss,
+                dismiss = { visible = false },
+                confirm = { applied.set(it.size); visible = false },
+            )
+        } else {
+            SingleSelectDialog(
+                entries = entries, selectedKey = 1,
+                confirmText = confirm, dismissText = dismiss,
+                dismiss = { visible = false },
+                confirm = { applied.set(it); visible = false },
+            )
         }
     }
 

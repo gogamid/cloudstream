@@ -31,6 +31,11 @@ class SourcePriorityDialog(
         fixSystemBarsPadding(binding.root)
 
         binding.apply {
+            profileTextEditable.nextFocusUpId = sortQualities.id
+            profileTextEditable.nextFocusDownId = settingsBtt?.id ?: saveBtt.id
+            settingsBtt?.nextFocusUpId = profileTextEditable.id
+            saveBtt.nextFocusUpId = profileTextEditable.id
+            closeBtt.nextFocusUpId = profileTextEditable.id
             profileTextEditable.setText(
                 QualityDataHelper.getProfileName(profile.id).asString(context)
             )

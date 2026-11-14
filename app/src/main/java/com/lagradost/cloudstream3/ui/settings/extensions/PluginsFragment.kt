@@ -124,6 +124,7 @@ class PluginsFragment : BaseFragment<FragmentPluginsBinding>(
 
             val searchView =
                 menu?.findItem(R.id.search_button)?.actionView as? SearchView
+            searchView?.let { com.lagradost.cloudstream3.utils.TvTextInputNavigation.prepare(it) }
 
             // Don't go back if active query
             setNavigationOnClickListener {

@@ -327,18 +327,19 @@ class SettingsAccount : BasePreferenceFragmentCompat(), BiometricCallback {
                 binding.loginPasswordInput
             ).filter { it.isVisible }
 
-            displayedItems.foldRight(displayedItems.firstOrNull()) { item, previous ->
-                item.id.let { previous?.nextFocusDownId = it }
-                previous?.id?.let { item.nextFocusUpId = it }
-                item
+            displayedItems.zipWithNext { previous, next ->
+                previous.nextFocusDownId = next.id
+                next.nextFocusUpId = previous.id
             }
 
             displayedItems.firstOrNull()?.let {
                 binding.createAccount.nextFocusDownId = it.id
-                it.nextFocusUpId = binding.createAccount.id
+                it.nextFocusUpId = if (binding.createAccount.isVisible) binding.createAccount.id else binding.cancelBtt.id
             }
-            binding.applyBtt.id.let {
-                displayedItems.lastOrNull()?.nextFocusDownId = it
+            displayedItems.lastOrNull()?.let {
+                it.nextFocusDownId = binding.applyBtt.id
+                binding.applyBtt.nextFocusUpId = it.id
+                binding.cancelBtt.nextFocusUpId = it.id
             }
 
             binding.text1.text = api.name

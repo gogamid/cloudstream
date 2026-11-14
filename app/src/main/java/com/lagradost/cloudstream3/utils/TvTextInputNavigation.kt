@@ -40,19 +40,31 @@ internal object TvTextInputNavigation {
         val search = generateSequence(focused.parent) { it.parent }.filterIsInstance<SearchView>().firstOrNull()
         val id = if (direction == View.FOCUS_DOWN) search?.nextFocusDownId else search?.nextFocusUpId
         val explicit = id?.takeIf { it != View.NO_ID }?.let { focused.rootView.findViewById<View>(it) }
-        val target = explicit?.takeIf { it.isShown && it.isEnabled }
-            ?: focused.focusSearch(direction)
-        if (target == null || target === focused || !target.isShown || !target.isEnabled) return false
-        if (target is EditText) target.showSoftInputOnFocus = false
-        // Containers should yield to their actual buttons/cards, not become focus traps.
-        val moved = if (target is ViewGroup) {
-            val candidates = ArrayList<View>()
-            target.addFocusables(candidates, direction)
-            candidates.firstOrNull { it !== target && it !== focused && it.isShown && it.isEnabled }
-                ?.requestFocus(direction) ?: target.requestFocus(direction)
-        } else target.requestFocus(direction)
-        if (moved) ime?.hideSoftInputFromWindow(focused.windowToken, 0)
-        return moved
+        // A footer can sit beside its editor, leaving no geometric Up/Down target.
+        // Try traversal order, then its opposite, rather than handing arrows to the caret.
+        val traversal = if (direction == View.FOCUS_DOWN) View.FOCUS_FORWARD else View.FOCUS_BACKWARD
+        val targets = sequenceOf(
+            explicit,
+            focused.focusSearch(direction),
+            focused.focusSearch(traversal),
+            focused.focusSearch(if (traversal == View.FOCUS_FORWARD) View.FOCUS_BACKWARD else View.FOCUS_FORWARD),
+        )
+        for (target in targets.filterNotNull().distinct()) {
+            if (target === focused || !target.isShown || !target.isEnabled) continue
+            if (target is EditText) target.showSoftInputOnFocus = false
+            // Containers should yield to their actual buttons/cards, not become focus traps.
+            val moved = if (target is ViewGroup) {
+                val candidates = ArrayList<View>()
+                target.addFocusables(candidates, direction)
+                candidates.firstOrNull { it !== target && it !== focused && it.isShown && it.isEnabled }
+                    ?.requestFocus(direction) ?: target.requestFocus(direction)
+            } else target.requestFocus(direction)
+            if (moved) {
+                ime?.hideSoftInputFromWindow(focused.windowToken, 0)
+                return true
+            }
+        }
+        return false
     }
 
     internal fun direction(key: Int): Int? = when (key) {
