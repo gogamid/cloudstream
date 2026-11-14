@@ -353,7 +353,10 @@ class ForkSeekBurstTest {
                 ActivityScenario.launch<ForkComposeInputTestActivity>(
                     Intent(context, ForkComposeInputTestActivity::class.java).putExtra("mode", "player")
                 ).use { scenario ->
-                    val fragment = FullScreenPlayer()
+                    // Match GeneratorPlayer's TV layout; the base fragment uses phone controls.
+                    val fragment = object : FullScreenPlayer() {
+                        override fun pickLayout(): Int = R.layout.fragment_player_tv
+                    }
                     val settings = PlayerSeekSettings(context)
                     scenario.onActivity { activity ->
                         activity.supportFragmentManager.beginTransaction()
