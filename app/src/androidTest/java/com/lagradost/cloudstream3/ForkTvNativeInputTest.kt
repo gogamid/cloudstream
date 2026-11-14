@@ -1,16 +1,22 @@
 package com.lagradost.cloudstream3
 
 import android.content.Intent
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.View
 import android.widget.EditText
 import androidx.core.view.allViews
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.hasFocus
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.isRoot
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -46,6 +52,21 @@ class ForkTvNativeInputTest {
     private fun press(key: Int) {
         instrumentation.sendKeyDownUpSync(key)
         instrumentation.waitForIdleSync()
+    }
+
+    private fun awaitKeyboard(scenario: ActivityScenario<ForkComposeInputTestActivity>, expected: Boolean) {
+        val deadline = SystemClock.uptimeMillis() + 15_000
+        while (SystemClock.uptimeMillis() < deadline) {
+            var visible = false
+            scenario.onActivity {
+                visible = it.nativeDialog?.window?.decorView?.let { view ->
+                    ViewCompat.getRootWindowInsets(view)?.isVisible(WindowInsetsCompat.Type.ime())
+                } == true
+            }
+            if (visible == expected) return
+            SystemClock.sleep(100)
+        }
+        fail("Native search keyboard visibility did not become $expected")
     }
 
     @Test fun loginVisitsEveryVisibleFieldAndReturnsFromFooter() {
@@ -86,6 +107,16 @@ class ForkTvNativeInputTest {
                 Intent(context, ForkComposeInputTestActivity::class.java)
                     .putExtra("mode", "native-input").putExtra("layout", layout)
             ).use { scenario ->
+                onView(isRoot()).inRoot(isDialog()).check(matches(isDisplayed()))
+                if (layout == R.layout.dialog_online_subtitles) {
+                    // Allow SearchAutoComplete's deferred input-connection request to run.
+                    SystemClock.sleep(600)
+                    scenario.onActivity {
+                        assertFalse("Search focus opened the keyboard without OK",
+                            ViewCompat.getRootWindowInsets(it.nativeDialog!!.window!!.decorView)
+                                ?.isVisible(WindowInsetsCompat.Type.ime()) == true)
+                    }
+                }
                 var editors = emptyList<EditText>()
                 scenario.onActivity { activity ->
                     editors = activity.nativeRoot!!.allViews.filterIsInstance<EditText>().filter { it.isShown }.toList()
@@ -105,6 +136,18 @@ class ForkTvNativeInputTest {
                             assertTrue(focused!!.isShown && focused.isEnabled)
                         }
                     }
+                }
+                if (layout == R.layout.dialog_online_subtitles) {
+                    repeat(2) {
+                        scenario.onActivity { assertTrue(editors.single().requestFocus()) }
+                        press(KeyEvent.KEYCODE_DPAD_CENTER)
+                        awaitKeyboard(scenario, true)
+                        press(KeyEvent.KEYCODE_BACK)
+                        awaitKeyboard(scenario, false)
+                    }
+                    scenario.onActivity { assertTrue(editors.single().requestFocus()) }
+                    press(KeyEvent.KEYCODE_DPAD_UP)
+                    scenario.onActivity { assertNotSame(editors.single(), it.nativeDialog?.currentFocus) }
                 }
                 scenario.onActivity { it.nativeDialog?.dismiss() }
             }

@@ -5,6 +5,7 @@ import android.view.FocusFinder
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.appcompat.widget.SearchView
@@ -23,6 +24,28 @@ internal object TvTextInputNavigation {
             // Focusing a field is not the same as choosing to edit it with OK.
             input.showSoftInputOnFocus = false
             if (dialog) input.setOnKeyListener { view, _, event -> handle(view, event) }
+        }
+        root.allViews.filterIsInstance<SearchView>().forEach { search ->
+            // SearchAutoComplete queues its own IME request on window focus, ignoring
+            // showSoftInputOnFocus. This observer runs after that callback and before
+            // input-connection setup. clearFocus cancels the request; restore focus so
+            // D-pad navigation and explicit OK-to-edit still work normally.
+            val listener = ViewTreeObserver.OnWindowFocusChangeListener { hasWindowFocus ->
+                if (hasWindowFocus && search.hasFocus()) {
+                    val focused = search.findFocus()
+                    search.clearFocus()
+                    focused?.requestFocus()
+                }
+            }
+            search.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: View) {
+                    view.viewTreeObserver.addOnWindowFocusChangeListener(listener)
+                }
+                override fun onViewDetachedFromWindow(view: View) {
+                    view.viewTreeObserver.removeOnWindowFocusChangeListener(listener)
+                }
+            })
+            if (search.isAttachedToWindow) search.viewTreeObserver.addOnWindowFocusChangeListener(listener)
         }
     }
 

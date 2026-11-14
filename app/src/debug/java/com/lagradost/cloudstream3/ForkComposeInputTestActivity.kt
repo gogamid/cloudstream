@@ -101,6 +101,13 @@ class ForkComposeInputTestActivity : FragmentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        nativeDialog?.dismiss()
+        nativeDialog = null
+        nativeRoot = null
+        super.onDestroy()
+    }
+
     @Composable
     private fun Editor(settingsSearch: Boolean) {
         var text by remember { mutableStateOf("") }
