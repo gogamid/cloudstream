@@ -31,6 +31,8 @@ import com.lagradost.cloudstream3.ui.player.PlayerView
 import com.lagradost.cloudstream3.ui.player.FullScreenPlayer
 import com.lagradost.cloudstream3.ui.player.RemoteButtonMappings
 import com.lagradost.cloudstream3.ui.player.SettingsSeekPlayer
+import com.lagradost.cloudstream3.ui.settings.Globals
+import com.lagradost.cloudstream3.ui.settings.Globals.updateTv
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -196,7 +198,7 @@ class ForkSeekBurstTest {
         }
     }
 
-    private inner class Fixture : AutoCloseable {
+    private inner class Fixture(durationSeconds: Int = 20) : AutoCloseable {
         private val context = InstrumentationRegistry.getInstrumentation().targetContext
         private val file = File.createTempFile("seek-burst-", ".wav", context.cacheDir)
         private val error = AtomicReference<Throwable?>()
@@ -204,9 +206,8 @@ class ForkSeekBurstTest {
         lateinit var player: CS3IPlayer
         lateinit var nativePlayer: Player
         init {
-            // Twenty seconds of silent PCM: no network, media server, video
-            // codec, storage permission, audio content or large fixture needed.
-            val bytes = 8_000 * 2 * 20
+            // Silent PCM: no network, media server, video codec or storage permission.
+            val bytes = 8_000 * 2 * durationSeconds
             val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
                 .put("RIFF".toByteArray()).putInt(36 + bytes).put("WAVEfmt ".toByteArray())
                 .putInt(16).putShort(1).putShort(1).putInt(8_000).putInt(16_000)
@@ -333,6 +334,109 @@ class ForkSeekBurstTest {
             assertTrue(preferences.edit().apply {
                 if (original == null) remove(key) else putBoolean(key, original)
             }.commit())
+        }
+    }
+
+    @Test fun heldTvSeekKeysAccelerateButNewPressesAndPhoneInputDoNot() = withSeekSettings {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val layoutKey = context.getString(R.string.app_layout_key)
+        val previousLayout = preferences.all[layoutKey] as? Int
+        val previousMappings = preferences.getStringSet(RemoteButtonMappings.KEY, null)?.toSet()
+        assertTrue(preferences.edit().putInt(layoutKey, 2).commit())
+        context.updateTv()
+        RemoteButtonMappings.save(context, KeyEvent.KEYCODE_7, RemoteButtonMappings.Action.SEEK_FORWARD)
+        RemoteButtonMappings.save(context, KeyEvent.KEYCODE_8, RemoteButtonMappings.Action.SEEK_BACK)
+        RemoteButtonMappings.save(context, KeyEvent.KEYCODE_9, RemoteButtonMappings.Action.CONTROLS)
+        try {
+            Fixture(durationSeconds = 600).use { f ->
+                ActivityScenario.launch<ForkComposeInputTestActivity>(
+                    Intent(context, ForkComposeInputTestActivity::class.java).putExtra("mode", "player")
+                ).use { scenario ->
+                    val fragment = FullScreenPlayer()
+                    val settings = PlayerSeekSettings(context)
+                    scenario.onActivity { activity ->
+                        activity.supportFragmentManager.beginTransaction()
+                            .replace(android.R.id.content, fragment).commitNow()
+                        fragment.player = f.player
+                        f.player.setSeekDurationProvider {
+                            settings.amountMs(Globals.isLayout(Globals.TV or Globals.EMULATOR), fragment.isUIShowing())
+                        }
+                    }
+                    f.await("Playback window did not gain focus") { fragment.view?.hasWindowFocus() == true }
+                    fun down(key: Int, heldMs: Long = 0, repeat: Int = 0) {
+                        val now = SystemClock.uptimeMillis()
+                        assertTrue(CommonActivity.keyEventListener?.invoke(
+                            KeyEvent(now - heldMs, now, KeyEvent.ACTION_DOWN, key, repeat) to false
+                        ) == true)
+                    }
+                    fun finishAt(expectedMs: Long, expectedSeeks: Int) {
+                        main { f.player.finishInteractiveSeek() }
+                        f.await("Seek did not settle") {
+                            !f.player.isInteractiveSeeking() && f.seeks.get() == expectedSeeks &&
+                                (f.nativePlayer.playbackState == Player.STATE_READY ||
+                                    f.nativePlayer.playbackState == Player.STATE_ENDED)
+                        }
+                        main {
+                            assertEquals(expectedMs.toDouble(), f.nativePlayer.currentPosition.toDouble(), 100.0)
+                            assertEquals(expectedSeeks, f.seeks.get())
+                            assertFalse(f.player.getPlayWhenReady())
+                            assertFalse(f.player.isActuallyPlaying())
+                        }
+                    }
+                    main {
+                        // Hidden controls: 5s base, then 5 + 10 + 20 + 40 + 80 + 80s.
+                        down(KeyEvent.KEYCODE_DPAD_RIGHT)
+                        for ((index, heldMs) in listOf(1_999L, 2_000L, 4_000L, 6_000L, 8_000L, 9_000L).withIndex()) {
+                            down(KeyEvent.KEYCODE_DPAD_RIGHT, heldMs, index + 1)
+                        }
+                        val now = SystemClock.uptimeMillis()
+                        CommonActivity.keyEventListener?.invoke(
+                            KeyEvent(now - 9_000, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_RIGHT, 0) to false)
+                        // A fresh down is normal speed even if its timestamps span a long interval.
+                        down(KeyEvent.KEYCODE_DPAD_RIGHT, heldMs = 8_000)
+                        down(KeyEvent.KEYCODE_8) // Mapped rewind: -5s, then -10s.
+                        down(KeyEvent.KEYCODE_8, heldMs = 2_000, repeat = 1)
+                        down(KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, heldMs = 4_000, repeat = 1) // +20s
+                        down(KeyEvent.KEYCODE_MEDIA_REWIND, heldMs = 6_000, repeat = 1) // -40s
+                        down(KeyEvent.KEYCODE_7, heldMs = 8_000, repeat = 1) // Mapped forward: +80s.
+                        assertEquals(0, f.seeks.get())
+                        assertTrue(f.player.isInteractiveSeeking())
+                    }
+                    finishAt(300_000, 1)
+                    main {
+                        down(KeyEvent.KEYCODE_9) // Show controls and focus their playback button.
+                        assertTrue(fragment.isUIShowing())
+                        assertTrue(fragment.playerPausePlay?.requestFocus() == true)
+                        down(KeyEvent.KEYCODE_DPAD_LEFT) // Independent shown setting: -10s.
+                        down(KeyEvent.KEYCODE_DPAD_LEFT, heldMs = 2_000, repeat = 1) // -20s.
+                    }
+                    finishAt(270_000, 2)
+                    main {
+                        repeat(3) { down(KeyEvent.KEYCODE_7, heldMs = 8_000, repeat = it + 1) }
+                    }
+                    finishAt(599_999, 3) // Clamp at the end without overflowing the duration.
+                    main {
+                        repeat(4) { down(KeyEvent.KEYCODE_8, heldMs = 8_000, repeat = it + 1) }
+                    }
+                    finishAt(0, 4)
+                    main {
+                        assertTrue(preferences.edit().putInt(layoutKey, 0).commit())
+                        context.updateTv()
+                        down(KeyEvent.KEYCODE_7, heldMs = 8_000, repeat = 1) // Phone mappings remain single-press.
+                        assertFalse(f.player.isInteractiveSeeking())
+                        down(KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, heldMs = 8_000, repeat = 1)
+                    }
+                    finishAt(7_000, 5) // Phone's own 7s setting, not an accelerated TV amount.
+                }
+            }
+        } finally {
+            assertTrue(preferences.edit().apply {
+                if (previousLayout == null) remove(layoutKey) else putInt(layoutKey, previousLayout)
+                if (previousMappings == null) remove(RemoteButtonMappings.KEY)
+                else putStringSet(RemoteButtonMappings.KEY, previousMappings)
+            }.commit())
+            context.updateTv()
         }
     }
 

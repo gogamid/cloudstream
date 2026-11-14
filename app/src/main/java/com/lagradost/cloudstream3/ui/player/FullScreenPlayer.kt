@@ -1166,15 +1166,26 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         playerHostView?.requestUpdateBrightnessOverlayOnNextLayout()
     }
 
-    private fun handleKeyDownEvent(keyCode: Int): Boolean? {
+    private fun seekFromKey(event: KeyEvent, forward: Boolean) {
+        if (event.repeatCount == 0 || !isLayout(TV or EMULATOR)) {
+            player.handleEvent(if (forward) CSPlayerEvent.SeekForward else CSPlayerEvent.SeekBack)
+            return
+        }
+        val amount = playerHostView?.seekAmountMs() ?: return
+        val delta = SeekDurationPolicy.heldAmountMs(amount, event.eventTime - event.downTime)
+        player.seekTime(if (forward) delta else -delta)
+    }
+
+    private fun handleKeyDownEvent(event: KeyEvent): Boolean? {
+        val keyCode = event.keyCode
         // adb shell input keyevent [INT]
         when (keyCode) {
             KeyEvent.KEYCODE_FORWARD, KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_MEDIA_SKIP_FORWARD, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                player.handleEvent(CSPlayerEvent.SeekForward)
+                seekFromKey(event, forward = true)
             }
 
             KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_MEDIA_SKIP_BACKWARD, KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                player.handleEvent(CSPlayerEvent.SeekBack)
+                seekFromKey(event, forward = false)
             }
 
             KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_NUMPAD_2, KeyEvent.KEYCODE_CHANNEL_UP -> {
@@ -1269,10 +1280,10 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
             KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (!isShowing && !isLocked && !isShowingEpisodeOverlay) {
-                    player.handleEvent(CSPlayerEvent.SeekBack)
+                    seekFromKey(event, forward = false)
                     return true
                 } else if (playerBinding?.playerPausePlay?.isFocused == true) {
-                    player.handleEvent(CSPlayerEvent.SeekBack)
+                    seekFromKey(event, forward = false)
                     return true
                 } else {
                     return null
@@ -1281,9 +1292,9 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 if (!isShowing && !isLocked && !isShowingEpisodeOverlay) {
-                    player.handleEvent(CSPlayerEvent.SeekForward)
+                    seekFromKey(event, forward = true)
                 } else if (playerBinding?.playerPausePlay?.isFocused == true) {
-                    player.handleEvent(CSPlayerEvent.SeekForward)
+                    seekFromKey(event, forward = true)
                 } else {
                     return null
                 }
@@ -1314,7 +1325,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     protected open fun toggleSubtitles() = Unit
     protected open fun selectNextVideoSource() = Unit
 
-    private fun runRemoteAction(action: RemoteButtonMappings.Action) {
+    private fun runRemoteAction(action: RemoteButtonMappings.Action, event: KeyEvent) {
         val playback = when (action) {
             RemoteButtonMappings.Action.PLAY_PAUSE -> CSPlayerEvent.PlayPauseToggle
             RemoteButtonMappings.Action.PLAY -> CSPlayerEvent.Play
@@ -1330,7 +1341,11 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             else -> null
         }
         if (playback != null) {
-            player.handleEvent(playback)
+            when (playback) {
+                CSPlayerEvent.SeekForward -> seekFromKey(event, forward = true)
+                CSPlayerEvent.SeekBack -> seekFromKey(event, forward = false)
+                else -> player.handleEvent(playback)
+            }
             return
         }
         when (action) {
@@ -1377,10 +1392,12 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             com.lagradost.cloudstream3.utils.ComposeTextFocus.isTyping
         ) return false
         remoteMappings[event.keyCode]?.let { action ->
-            // Single press only: consume repeats and key-up without repeating actions.
-            if (!hasNavigated && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+            val heldSeek = isLayout(TV or EMULATOR) &&
+                (action == RemoteButtonMappings.Action.SEEK_FORWARD || action == RemoteButtonMappings.Action.SEEK_BACK)
+            // Only TV seek mappings repeat; subtitle timing and other actions stay single-press.
+            if (!hasNavigated && event.action == KeyEvent.ACTION_DOWN && (event.repeatCount == 0 || heldSeek) &&
                 (!isLocked || action == RemoteButtonMappings.Action.LOCK)
-            ) runRemoteAction(action)
+            ) runRemoteAction(action, event)
             return true
         }
         if (hasNavigated) {
@@ -1397,7 +1414,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_P,
                     KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_NUMPAD_ENTER
                 )) return true
-            val value = handleKeyDownEvent(keyCode)
+            val value = handleKeyDownEvent(event)
             if (value != null) {
                 return value
             }

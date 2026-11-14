@@ -60,6 +60,26 @@ class SeekDurationPolicyTest {
             assertEquals(listOf(expected), seeks)
         }
     }
+    @Test fun `held seeking accelerates at two second boundaries using the saved amount`() {
+        val cases = listOf(
+            -1L to 1, 0L to 1, 1_999L to 1,
+            2_000L to 2, 3_999L to 2,
+            4_000L to 4, 5_999L to 4,
+            6_000L to 8, 7_999L to 8,
+            8_000L to 16, 60_000L to 16, Long.MAX_VALUE to 16
+        )
+        for (seconds in listOf(5, 10)) {
+            for ((heldMs, multiplier) in cases) {
+                assertEquals("${seconds}s held for ${heldMs}ms",
+                    seconds * 1_000L * multiplier,
+                    SeekDurationPolicy.heldAmountMs(amount(hidden = seconds), heldMs))
+            }
+        }
+        // Positive legacy preferences must not overflow or get clamped to the slider range.
+        assertEquals(Int.MAX_VALUE.toLong() * 1_000L * 16,
+            SeekDurationPolicy.heldAmountMs(amount(hidden = Int.MAX_VALUE), 8_000L))
+    }
+
     @Test fun `changing visibility changes the effective amount without a reload`() {
         assertEquals(listOf(5_000L, 10_000L, 5_000L),
             listOf(false, true, false).map { amount(visible = it) })

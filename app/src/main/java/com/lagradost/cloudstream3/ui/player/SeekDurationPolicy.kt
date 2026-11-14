@@ -4,6 +4,10 @@ package com.lagradost.cloudstream3.ui.player
 internal object SeekDurationPolicy {
     const val DEFAULT_MS = 10_000L
 
+    /** A continuous TV key hold doubles every two seconds, capped at 16x. */
+    fun heldAmountMs(amountMs: Long, heldMs: Long): Long =
+        amountMs * (1L shl (heldMs.coerceIn(0L, 8_000L) / 2_000L).toInt())
+
     fun amountMs(isTv: Boolean, controlsVisible: Boolean, doubleTapSeconds: Int,
                  tvShownSeconds: Int, tvHiddenSeconds: Int): Long {
         val seconds = if (!isTv) doubleTapSeconds else if (controlsVisible) tvShownSeconds else tvHiddenSeconds
