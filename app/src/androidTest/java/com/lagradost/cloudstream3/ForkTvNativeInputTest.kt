@@ -76,21 +76,22 @@ class ForkTvNativeInputTest {
                     Intent(context, ForkComposeInputTestActivity::class.java)
                         .putExtra("mode", "native-login").putExtra("email", email).putExtra("create", create)
                 ).use {
+                    onView(isRoot()).inRoot(isDialog()).check(matches(isDisplayed()))
                     val fields = listOfNotNull(R.id.login_username_input,
                         R.id.login_email_input.takeIf { email }, R.id.login_server_input, R.id.login_password_input)
-                    onView(withId(fields.first())).perform(click())
+                    onView(withId(fields.first())).inRoot(isDialog()).perform(click())
                     for (id in fields.drop(1)) {
                         press(KeyEvent.KEYCODE_DPAD_DOWN)
-                        onView(withId(id)).check(matches(hasFocus()))
+                        onView(withId(id)).inRoot(isDialog()).check(matches(hasFocus()))
                     }
                     press(KeyEvent.KEYCODE_DPAD_DOWN)
-                    onView(withId(R.id.apply_btt)).check(matches(hasFocus()))
+                    onView(withId(R.id.apply_btt)).inRoot(isDialog()).check(matches(hasFocus()))
                     for (id in fields.reversed()) {
                         press(KeyEvent.KEYCODE_DPAD_UP)
-                        onView(withId(id)).check(matches(hasFocus()))
+                        onView(withId(id)).inRoot(isDialog()).check(matches(hasFocus()))
                     }
                     press(KeyEvent.KEYCODE_DPAD_UP)
-                    onView(withId(if (create) R.id.create_account else R.id.cancel_btt)).check(matches(hasFocus()))
+                    onView(withId(if (create) R.id.create_account else R.id.cancel_btt)).inRoot(isDialog()).check(matches(hasFocus()))
                     press(KeyEvent.KEYCODE_BACK)
                 }
             }
@@ -132,7 +133,9 @@ class ForkTvNativeInputTest {
                         scenario.onActivity { activity ->
                             val focused: View? = activity.nativeDialog?.currentFocus
                             assertNotNull("No focus after key $key in layout $layout", focused)
-                            assertNotSame("Editor trapped key $key in layout $layout", editor, focused)
+                            assertNotSame("Editor trapped key $key in ${context.resources.getResourceName(layout)}: $editor; " +
+                                "spatial target=${editor.focusSearch(if (key == KeyEvent.KEYCODE_DPAD_UP) View.FOCUS_UP else View.FOCUS_DOWN)}",
+                                editor, focused)
                             assertTrue(focused!!.isShown && focused.isEnabled)
                         }
                     }

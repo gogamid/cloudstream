@@ -87,7 +87,9 @@ internal object TvTextInputNavigation {
                 candidates.firstOrNull { it !== target && it !== focused && it.isShown && it.isEnabled }
                     ?.requestFocus(direction) ?: target.requestFocus(direction)
             } else target.requestFocus(direction)
-            if (moved) {
+            // SearchView can accept focus by delegating straight back to this editor.
+            // That is not an escape; continue to the next traversal candidate.
+            if (moved && !focused.isFocused) {
                 ime?.hideSoftInputFromWindow(focused.windowToken, 0)
                 return true
             }
