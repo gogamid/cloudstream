@@ -359,6 +359,9 @@ class ForkSeekBurstTest {
                         activity.supportFragmentManager.beginTransaction()
                             .replace(android.R.id.content, fragment).commitNow()
                         fragment.player = f.player
+                        // This fixture owns the backend callbacks; reflect its already-ready,
+                        // paused state in the newly attached host instead of leaving it buffering.
+                        fragment.currentPlayerStatus = CSPlayerLoading.IsPaused
                         f.player.setSeekDurationProvider {
                             settings.amountMs(Globals.isLayout(Globals.TV or Globals.EMULATOR), fragment.isUIShowing())
                         }
