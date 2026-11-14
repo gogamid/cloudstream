@@ -46,6 +46,11 @@ import org.junit.runner.RunWith
 @OptIn(UnstableApi::class)
 @RunWith(AndroidJUnit4::class)
 class ForkSeekBurstTest {
+    // FragmentTransaction requires a public, non-inner class with a no-arg constructor.
+    class TvPlayerFragment : FullScreenPlayer() {
+        override fun pickLayout(): Int = R.layout.fragment_player_tv
+    }
+
     private fun main(block: () -> Unit) {
         val failure = AtomicReference<Throwable?>()
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -354,9 +359,7 @@ class ForkSeekBurstTest {
                     Intent(context, ForkComposeInputTestActivity::class.java).putExtra("mode", "player")
                 ).use { scenario ->
                     // Match GeneratorPlayer's TV layout; the base fragment uses phone controls.
-                    val fragment = object : FullScreenPlayer() {
-                        override fun pickLayout(): Int = R.layout.fragment_player_tv
-                    }
+                    val fragment = TvPlayerFragment()
                     val settings = PlayerSeekSettings(context)
                     scenario.onActivity { activity ->
                         activity.supportFragmentManager.beginTransaction()
