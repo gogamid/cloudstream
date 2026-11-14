@@ -9,6 +9,7 @@ import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.appcompat.widget.SearchView
+import androidx.core.view.SoftwareKeyboardControllerCompat
 import androidx.core.view.allViews
 import com.lagradost.cloudstream3.ui.settings.Globals.TV
 import com.lagradost.cloudstream3.ui.settings.Globals.EMULATOR
@@ -55,7 +56,8 @@ internal object TvTextInputNavigation {
         val ime = focused.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
         if (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER) {
             if (event.action == KeyEvent.ACTION_UP) {
-                ime?.showSoftInput(focused, InputMethodManager.SHOW_IMPLICIT)
+                // Synchronize a renewed input connection before reopening after Back.
+                SoftwareKeyboardControllerCompat(focused).show()
             }
             return true
         }
