@@ -1,6 +1,7 @@
 package com.lagradost.cloudstream3.utils
 
 import android.content.Context
+import android.view.FocusFinder
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -43,11 +44,15 @@ internal object TvTextInputNavigation {
         // A footer can sit beside its editor, leaving no geometric Up/Down target.
         // Try traversal order, then its opposite, rather than handing arrows to the caret.
         val traversal = if (direction == View.FOCUS_DOWN) View.FOCUS_FORWARD else View.FOCUS_BACKWARD
+        val root = focused.rootView as? ViewGroup
         val targets = sequenceOf(
             explicit,
             focused.focusSearch(direction),
-            focused.focusSearch(traversal),
-            focused.focusSearch(if (traversal == View.FOCUS_FORWARD) View.FOCUS_BACKWARD else View.FOCUS_FORWARD),
+            root?.let { FocusFinder.getInstance().findNextFocus(it, focused, traversal) },
+            root?.let {
+                FocusFinder.getInstance().findNextFocus(it, focused,
+                    if (traversal == View.FOCUS_FORWARD) View.FOCUS_BACKWARD else View.FOCUS_FORWARD)
+            },
         )
         for (target in targets.filterNotNull().distinct()) {
             if (target === focused || !target.isShown || !target.isEnabled) continue
