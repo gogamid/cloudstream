@@ -68,7 +68,8 @@ class ForkRemoteButtonsTest {
 
                 for ((button, action) in listOf(
                     KeyEvent.KEYCODE_7 to RemoteButtonMappings.Action.SUBTITLES_EARLIER,
-                    KeyEvent.KEYCODE_8 to RemoteButtonMappings.Action.SUBTITLES_LATER
+                    KeyEvent.KEYCODE_8 to RemoteButtonMappings.Action.SUBTITLES_LATER,
+                    KeyEvent.KEYCODE_9 to RemoteButtonMappings.Action.TOGGLE_REMEMBER_SERIES_SOURCE
                 )) {
                     item(context.getString(R.string.remote_add)).perform(click())
                     onView(withText(R.string.remote_press_button)).inRoot(isDialog()).check(matches(isDisplayed()))

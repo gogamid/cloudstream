@@ -66,6 +66,7 @@ import com.lagradost.cloudstream3.utils.UIHelper.popCurrentPage
 import com.lagradost.cloudstream3.utils.UIHelper.toPx
 import com.lagradost.cloudstream3.utils.setText
 import com.lagradost.cloudstream3.utils.txt
+import com.lagradost.cloudstream4.AppSettings
 import kotlin.math.roundToInt
 
 private const val SUBTITLE_DELAY_BUNDLE_KEY = "subtitle_delay"
@@ -1375,6 +1376,16 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             RemoteButtonMappings.Action.ENGLISH_SUBTITLES -> selectSubtitleLanguage("en")
             RemoteButtonMappings.Action.SOURCES -> showMirrorsDialogue()
             RemoteButtonMappings.Action.NEXT_SOURCE -> selectNextVideoSource()
+            RemoteButtonMappings.Action.TOGGLE_REMEMBER_SERIES_SOURCE -> {
+                val ctx = context ?: return
+                val preference = AppSettings(ctx).player.rememberSeriesSource
+                val enabled = !preference.get()
+                preference.set(enabled)
+                com.lagradost.cloudstream3.CommonActivity.showToast(activity, ctx.getString(
+                    if (enabled) R.string.remote_remember_series_source_on
+                    else R.string.remote_remember_series_source_off
+                ))
+            }
             RemoteButtonMappings.Action.TRACKS -> showTracksDialogue()
             RemoteButtonMappings.Action.SPEED -> showSpeedDialog()
             RemoteButtonMappings.Action.RESIZE -> nextResize()

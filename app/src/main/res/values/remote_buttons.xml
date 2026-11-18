@@ -32,6 +32,9 @@
     <string name="remote_no_subtitles">No subtitles are available for this video.</string>
     <string name="remote_sources">Sources / subtitles</string>
     <string name="remote_next_source">Next video source</string>
+    <string name="remote_toggle_remember_series_source">Toggle remembering series video source</string>
+    <string name="remote_remember_series_source_on">Remember series video source: on</string>
+    <string name="remote_remember_series_source_off">Remember series video source: off</string>
     <string name="remote_source_missing">No other video source is currently available.</string>
     <string name="remote_source_selected">Source: %1$s</string>
     <string name="remote_tracks">Audio / video tracks</string>

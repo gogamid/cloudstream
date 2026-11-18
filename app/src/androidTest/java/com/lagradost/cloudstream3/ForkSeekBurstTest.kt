@@ -33,6 +33,7 @@ import com.lagradost.cloudstream3.ui.player.RemoteButtonMappings
 import com.lagradost.cloudstream3.ui.player.SettingsSeekPlayer
 import com.lagradost.cloudstream3.ui.settings.Globals
 import com.lagradost.cloudstream3.ui.settings.Globals.updateTv
+import com.lagradost.cloudstream4.AppSettings
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -65,14 +66,18 @@ class ForkSeekBurstTest {
         return result
     }
 
-    @Test fun subtitleTimingMappingsAccumulateWithoutSeekingOrResumingVideo() {
+    @Test fun subtitleTimingAndSourceMemoryMappingsDoNotSeekOrResumeVideo() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
         val previous = preferences.getStringSet(RemoteButtonMappings.KEY, null)?.toSet()
+        val sourceMemory = AppSettings(context).player.rememberSeriesSource
+        val previousSourceMemory = preferences.all[sourceMemory.key()] as? Boolean
         val earlier = KeyEvent.KEYCODE_7
         val later = KeyEvent.KEYCODE_8
+        val remember = KeyEvent.KEYCODE_9
         RemoteButtonMappings.save(context, earlier, RemoteButtonMappings.Action.SUBTITLES_EARLIER)
         RemoteButtonMappings.save(context, later, RemoteButtonMappings.Action.SUBTITLES_LATER)
+        RemoteButtonMappings.save(context, remember, RemoteButtonMappings.Action.TOGGLE_REMEMBER_SERIES_SOURCE)
         try {
             Fixture().use { fixture ->
                 ActivityScenario.launch<ForkComposeInputTestActivity>(
@@ -118,6 +123,17 @@ class ForkSeekBurstTest {
                     main { assertEquals(-100L, fixture.player.getSubtitleOffset()) }
                     main { fixture.player.setSubtitleOffset(275L) } // Also respect dialog-set offsets.
                     repeat(3) { press(later) }
+                    sourceMemory.set(false)
+                    press(remember)
+                    assertTrue(AppSettings(context).player.rememberSeriesSource.get())
+                    press(remember, repeat = 1) // Holding the button must not toggle back.
+                    assertTrue(AppSettings(context).player.rememberSeriesSource.get())
+                    press(remember)
+                    assertFalse(AppSettings(context).player.rememberSeriesSource.get())
+                    // Read the current saved value, not a player-local cached toggle state.
+                    sourceMemory.set(true)
+                    press(remember)
+                    assertFalse(AppSettings(context).player.rememberSeriesSource.get())
                     main {
                         assertEquals(-25L, fixture.player.getSubtitleOffset())
                         assertEquals(position, fixture.nativePlayer.currentPosition)
@@ -130,6 +146,8 @@ class ForkSeekBurstTest {
             assertTrue(preferences.edit().apply {
                 if (previous == null) remove(RemoteButtonMappings.KEY)
                 else putStringSet(RemoteButtonMappings.KEY, previous)
+                if (previousSourceMemory == null) remove(sourceMemory.key())
+                else putBoolean(sourceMemory.key(), previousSourceMemory)
             }.commit())
         }
     }
