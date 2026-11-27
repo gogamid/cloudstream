@@ -54,27 +54,16 @@ internal object TvTextInputNavigation {
         if (!isLayout(TV or EMULATOR) || focused !is EditText) return false
         val direction = direction(event.keyCode)
         val ime = focused.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-        val search = generateSequence(focused.parent) { it.parent }.filterIsInstance<SearchView>().firstOrNull()
         if (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER) {
             if (event.action == KeyEvent.ACTION_UP) {
-                if (search != null && ime != null) {
-                    // On Android 12 the compat controller can issue both an insets
-                    // request and a direct show. After Back, that can restart the
-                    // SearchAutoComplete input session while the IME is opening.
-                    focused.post {
-                        if (focused.isFocused && focused.hasWindowFocus()) {
-                            ime.isActive(focused)
-                            ime.showSoftInput(focused, 0)
-                        }
-                    }
-                } else {
-                    SoftwareKeyboardControllerCompat(focused).show()
-                }
+                // Synchronize a renewed input connection before reopening after Back.
+                SoftwareKeyboardControllerCompat(focused).show()
             }
             return true
         }
         if (direction == null || event.action != KeyEvent.ACTION_DOWN) return false
         // SearchView's focus links live on its container, not its internal editor.
+        val search = generateSequence(focused.parent) { it.parent }.filterIsInstance<SearchView>().firstOrNull()
         val id = if (direction == View.FOCUS_DOWN) search?.nextFocusDownId else search?.nextFocusUpId
         val explicit = id?.takeIf { it != View.NO_ID }?.let { focused.rootView.findViewById<View>(it) }
         // A footer can sit beside its editor, leaving no geometric Up/Down target.
