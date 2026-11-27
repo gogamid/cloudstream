@@ -20,6 +20,7 @@ import com.lagradost.cloudstream3.ui.result.ActorFilmography
 import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.utils.ImageLoader.loadImage
+import com.lagradost.cloudstream3.utils.getImageFromDrawable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -129,10 +130,16 @@ internal object DiscoverPreview {
         override fun onBindViewHolder(holder: Holder, position: Int) = with(holder.binding) {
             val member = cast[position]
             val actor = member.toActor()
-            castPhoto.loadImage(actor.image) {
-                placeholder(R.drawable.ic_baseline_people_24)
-                fallback(R.drawable.ic_baseline_people_24)
-                error(R.drawable.ic_baseline_people_24)
+            val icon = R.drawable.ic_baseline_people_24
+            val photo = actor.image
+            if (photo == null) {
+                castPhoto.loadImage(icon)
+            } else {
+                val defaultImage = getImageFromDrawable(castPhoto.context, icon)
+                castPhoto.loadImage(photo) {
+                    placeholder(defaultImage)
+                    error(defaultImage)
+                }
             }
             castName.text = actor.name
             castCharacter.text = member.character?.trim()
