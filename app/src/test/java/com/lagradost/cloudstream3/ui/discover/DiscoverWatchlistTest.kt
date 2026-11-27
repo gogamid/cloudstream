@@ -64,11 +64,11 @@ class DiscoverWatchlistTest {
 
     @Test
     fun `preview parses movie runtime and television seasons`() {
-        val movie = parseJson<DiscoverPreview.Details>("""{"overview":"A story","runtime":120}""")
+        val movie = parseJson<DiscoverPreviewRepository.Details>("""{"overview":"A story","runtime":120}""")
         assertEquals("A story", movie.overview)
         assertEquals(120, movie.runtime)
         assertNull(movie.seasons)
-        val series = parseJson<DiscoverPreview.Details>("""{"number_of_seasons":3,"overview":null}""")
+        val series = parseJson<DiscoverPreviewRepository.Details>("""{"number_of_seasons":3,"overview":null}""")
         assertEquals(3, series.seasons)
         assertNull(series.overview)
     }
