@@ -22,6 +22,8 @@ internal data class DiscoverState(
     val yearFrom: Int? = null,
     val yearTo: Int? = null,
     val sort: DiscoverSort = DiscoverSort.POPULAR,
+    val query: String = "",
+    val searchType: DiscoverMediaType? = null,
     val results: List<SearchResponse> = emptyList(),
     val page: Int = 0,
     val hasMore: Boolean = false,
@@ -29,6 +31,9 @@ internal data class DiscoverState(
     val error: Boolean = false,
     val defaults: FilterDefaults = FilterDefaults(),
 ) {
+    val isSearching: Boolean get() = query.isNotEmpty()
+    val activeType: DiscoverMediaType get() = if (isSearching) searchType ?: type else type
+
     val isDefault: Boolean
         get() = type == defaults.typeValue() &&
             language == defaults.languageValue() && rating == defaults.ratingValue() &&
@@ -72,6 +77,10 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
             sort = DiscoverSort.entries.firstOrNull {
                 it.name == savedState.get<String>("sort")
             } ?: DiscoverSort.POPULAR,
+            query = savedState.get<String>("search_query").orEmpty(),
+            searchType = DiscoverMediaType.entries.firstOrNull {
+                it.name == savedState.get<String>("search_type")
+            },
         )
     )
     val state: LiveData<DiscoverState> = mutableState
@@ -84,12 +93,27 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
 
     fun setType(type: DiscoverMediaType) {
         val current = mutableState.value ?: return
-        if (current.type == type) return
+        if (current.activeType == type) return
+        if (current.isSearching) {
+            savedState["search_type"] = type.name
+            load(reset = true, snapshot = current.copy(searchType = type))
+            return
+        }
         savedState["type"] = type.name
         savedState.remove<IntArray>("genre_ids")
         // Genre catalogues differ between movies and series.
         mutableState.value = current.copy(type = type, genreIds = emptySet(), genres = emptyList())
         load(reset = true)
+    }
+
+    fun setQuery(query: String) {
+        val current = mutableState.value ?: return
+        val trimmed = query.trim()
+        if (current.query == trimmed) return
+        val type = current.activeType.takeIf { trimmed.isNotEmpty() }
+        savedState["search_query"] = trimmed
+        savedState["search_type"] = type?.name
+        load(reset = true, snapshot = current.copy(query = trimmed, searchType = type))
     }
 
     fun setLanguage(language: DiscoverLanguage) {
@@ -166,10 +190,10 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
         }
     }
 
-    private fun load(reset: Boolean) {
+    private fun load(reset: Boolean, snapshot: DiscoverState? = mutableState.value) {
+        if (snapshot == null) return
         loadJob?.cancel()
         val requestGeneration = ++generation
-        val snapshot = mutableState.value ?: return
         val page = if (reset) 1 else snapshot.page + 1
         val previous = if (reset) emptyList() else snapshot.results
         mutableState.value = snapshot.copy(
@@ -180,18 +204,23 @@ internal class DiscoverViewModel(private val savedState: SavedStateHandle) : Vie
         loadJob = viewModelScope.launch {
             try {
                 val (genres, result) = withContext(Dispatchers.IO) {
-                    val genres = snapshot.genres.ifEmpty { repository.genres(snapshot.type) }
-                    genres to repository.discover(
-                        snapshot.type, snapshot.language, snapshot.rating, snapshot.genreIds,
-                        snapshot.yearFrom, snapshot.yearTo, snapshot.sort, page,
-                    )
+                    if (snapshot.isSearching) {
+                        snapshot.genres to repository.search(snapshot.activeType, snapshot.query, page)
+                    } else {
+                        val genres = snapshot.genres.ifEmpty { repository.genres(snapshot.type) }
+                        genres to repository.discover(
+                            snapshot.type, snapshot.language, snapshot.rating, snapshot.genreIds,
+                            snapshot.yearFrom, snapshot.yearTo, snapshot.sort, page,
+                        )
+                    }
                 }
                 // A cancelled request must never overwrite newer filter results.
                 if (requestGeneration != generation) return@launch
                 mutableState.value = snapshot.copy(
                     genres = genres,
                     // Selections made for the other catalogue never leak across types.
-                    genreIds = snapshot.genreIds.filter { id -> genres.any { it.id == id } }.toSet(),
+                    genreIds = if (snapshot.isSearching) snapshot.genreIds
+                    else snapshot.genreIds.filter { id -> genres.any { it.id == id } }.toSet(),
                     results = (previous + result.results).distinctBy { it.id },
                     page = page, hasMore = result.hasMore, loading = false, error = false,
                 )

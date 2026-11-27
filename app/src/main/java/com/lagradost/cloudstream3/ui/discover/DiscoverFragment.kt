@@ -1,13 +1,18 @@
 package com.lagradost.cloudstream3.ui.discover
 
+import android.view.LayoutInflater
 import android.view.View
+import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.lagradost.cloudstream3.R
+import com.lagradost.cloudstream3.databinding.DialogDiscoverSearchBinding
 import com.lagradost.cloudstream3.databinding.FragmentDiscoverBinding
 import com.lagradost.cloudstream3.ui.BaseFragment
 import com.lagradost.cloudstream3.ui.quicksearch.QuickSearchFragment
@@ -19,16 +24,18 @@ import com.lagradost.cloudstream3.ui.search.SearchAdapter
 import com.lagradost.cloudstream3.ui.setRecycledViewPool
 import com.lagradost.cloudstream3.ui.settings.Globals.EMULATOR
 import com.lagradost.cloudstream3.ui.settings.Globals.TV
+import com.lagradost.cloudstream3.ui.settings.Globals.isLandscape
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
+import com.lagradost.cloudstream3.utils.TvTextInputNavigation
 import com.lagradost.cloudstream3.utils.UIHelper.fixSystemBarsPadding
 import com.lagradost.cloudstream3.utils.UIHelper.getSpanCount
-import com.lagradost.cloudstream3.ui.settings.Globals.isLandscape
 import java.util.Calendar
 
 class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
     BaseFragment.BindingCreator.Inflate(FragmentDiscoverBinding::inflate)
 ) {
     private val viewModel: DiscoverViewModel by viewModels()
+    private var searchDialog: AlertDialog? = null
 
     override fun fixLayout(view: View) {
         fixSystemBarsPadding(view, padBottom = isLandscape(), padLeft = isLayout(TV or EMULATOR))
@@ -71,6 +78,11 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
                 }
             })
         }
+        binding.discoverSearch.setOnClickListener { showSearchDialog() }
+        binding.discoverClearSearch.setOnClickListener {
+            if (it.hasFocus()) binding.discoverSearch.requestFocus()
+            viewModel.setQuery("")
+        }
         binding.filterType.setOnClickListener { showTypeDialog() }
         binding.filterLanguage.setOnClickListener { showLanguageDialog() }
         binding.filterRating.setOnClickListener { showRatingDialog() }
@@ -84,6 +96,44 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
             if (viewModel.state.value?.error == true) viewModel.loadMoreOrRetry()
         }
         viewModel.state.observe(viewLifecycleOwner) { render(it) }
+    }
+
+    private fun showSearchDialog() {
+        if (searchDialog?.isShowing == true) return
+        val builder = AlertDialog.Builder(requireContext())
+        val search = DialogDiscoverSearchBinding.inflate(LayoutInflater.from(builder.context))
+        val input = search.discoverSearchInput
+        val onTv = isLayout(TV or EMULATOR)
+        input.setText(viewModel.state.value?.query.orEmpty())
+        input.setSelection(input.length())
+        TvTextInputNavigation.prepare(search.root, dialog = true)
+
+        fun submit() = viewModel.setQuery(input.text.toString())
+
+        val dialog = builder
+            .setTitle(R.string.discover_search_title)
+            .setView(search.root)
+            .setPositiveButton(R.string.discover_search_action) { _, _ -> submit() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        searchDialog = dialog
+        dialog.setOnDismissListener {
+            if (searchDialog === dialog) searchDialog = null
+        }
+        dialog.window?.setSoftInputMode(
+            if (onTv) WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+            else WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+        )
+        input.requestFocus()
+        dialog.show()
+        val searchButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        searchButton.isEnabled = !input.text.isNullOrBlank()
+        input.doAfterTextChanged { searchButton.isEnabled = !it.isNullOrBlank() }
+        input.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId != EditorInfo.IME_ACTION_SEARCH) return@setOnEditorActionListener false
+            if (searchButton.isEnabled) searchButton.performClick()
+            true
+        }
     }
 
     private fun setDropdown(chip: Chip, filterName: String, value: String) {
@@ -107,7 +157,7 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
 
     private fun showTypeDialog() {
         val options = DiscoverMediaType.entries.toList()
-        val current = viewModel.state.value?.type ?: DiscoverMediaType.MOVIES
+        val current = viewModel.state.value?.activeType ?: DiscoverMediaType.MOVIES
         val names = options.map {
             getString(if (it == DiscoverMediaType.MOVIES) R.string.discover_movies else R.string.discover_series)
         }.toTypedArray()
@@ -261,8 +311,18 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
     private fun render(state: DiscoverState) {
         val binding = binding ?: return
         val typeName = getString(
-            if (state.type == DiscoverMediaType.MOVIES) R.string.discover_movies else R.string.discover_series
+            if (state.activeType == DiscoverMediaType.MOVIES) R.string.discover_movies else R.string.discover_series
         )
+        binding.discoverSearch.text =
+            if (state.isSearching) state.query else getString(R.string.discover_search_title)
+        binding.discoverSearch.contentDescription =
+            if (state.isSearching) getString(R.string.discover_search_active, state.query) else null
+        binding.discoverClearSearch.isVisible = state.isSearching
+        binding.filterLanguage.isVisible = !state.isSearching
+        binding.filterRating.isVisible = !state.isSearching
+        binding.filterGenres.isVisible = !state.isSearching
+        binding.filterYear.isVisible = !state.isSearching
+        binding.filterSort.isVisible = !state.isSearching
         setDropdown(binding.filterType, getString(R.string.discover_filter_type), typeName)
         setDropdown(binding.filterLanguage, getString(R.string.discover_filter_language), getString(state.language.labelRes))
         setDropdown(binding.filterRating, getString(R.string.discover_filter_rating), ratingName(state.rating))
@@ -273,7 +333,7 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         val yearLabel = yearRangeLabel(YearRange(state.yearFrom, state.yearTo))
         setDropdown(binding.filterYear, getString(R.string.discover_filter_year), yearLabel)
         setDropdown(binding.filterSort, getString(R.string.discover_filter_sort), getString(state.sort.labelRes))
-        binding.filterReset.isVisible = !state.isDefault
+        binding.filterReset.isVisible = !state.isSearching && !state.isDefault
 
         val entries = DiscoverWatchlist.allEntries()
         val hidden = DiscoverWatchlist.hiddenUrls(entries)
@@ -300,7 +360,11 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
         binding.discoverLoading.isVisible = state.loading
         binding.discoverStatus.isVisible = !state.loading && (state.error || (visible.isEmpty() && !state.hasMore))
         binding.discoverStatus.setText(
-            if (state.error) R.string.discover_error else R.string.discover_empty
+            when {
+                state.error -> R.string.discover_error
+                state.isSearching -> R.string.discover_search_empty
+                else -> R.string.discover_empty
+            }
         )
         binding.discoverStatus.isClickable = state.error
         binding.discoverStatus.isFocusable = state.error
@@ -323,6 +387,8 @@ class DiscoverFragment : BaseFragment<FragmentDiscoverBinding>(
     }
 
     override fun onDestroyView() {
+        searchDialog?.dismiss()
+        searchDialog = null
         binding?.discoverResults?.adapter = null
         super.onDestroyView()
     }

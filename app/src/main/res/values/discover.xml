@@ -34,6 +34,12 @@
     <string name="discover_apply">Apply</string>
     <string name="discover_clear">Clear</string>
     <string name="discover_reset">Reset</string>
+    <string name="discover_search_title">Search titles</string>
+    <string name="discover_search_hint">Enter a title</string>
+    <string name="discover_search_action">Search</string>
+    <string name="discover_search_active">Edit title search: %1$s</string>
+    <string name="discover_clear_search">Clear search</string>
+    <string name="discover_search_empty">No matches. Try a different title or switch between Movies and Series.</string>
     <string name="discover_empty">No titles found. Try changing your filters.</string>
     <string name="discover_error">Could not load titles from TMDB. Tap to try again.</string>
     <string name="actor_filmography_no_matches">No titles match these filters.</string>

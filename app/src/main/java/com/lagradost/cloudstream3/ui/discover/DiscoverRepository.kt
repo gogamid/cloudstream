@@ -79,6 +79,20 @@ internal class DiscoverRepository(
         ).genres.orEmpty().filter { it.id > 0 && it.name.isNotBlank() }.distinctBy { it.id }
             .also { genreNames = genreNames + it.associate { genre -> genre.id to genre.name } }
 
+    suspend fun search(type: DiscoverMediaType, query: String, page: Int): DiscoverPage {
+        require(query.isNotBlank())
+        require(page in 1..500)
+        return loadPage(
+            "/search/${type.path}", type, TmdbRatingFilter.ALL, page,
+            mapOf(
+                "query" to query.trim(),
+                "language" to "en-US",
+                "include_adult" to "false",
+                "page" to page.toString(),
+            ),
+        )
+    }
+
     suspend fun discover(
         type: DiscoverMediaType,
         language: DiscoverLanguage,
@@ -121,7 +135,17 @@ internal class DiscoverRepository(
             yearFrom?.let { params[gteKey] = "%04d-01-01".format(it) }
             yearTo?.let { params[lteKey] = "%04d-12-31".format(it) }
         }
-        val response = parseJson<DiscoverResponse>(request("/discover/${type.path}", params))
+        return loadPage("/discover/${type.path}", type, rating, page, params)
+    }
+
+    private suspend fun loadPage(
+        path: String,
+        type: DiscoverMediaType,
+        rating: TmdbRatingFilter,
+        page: Int,
+        params: Map<String, String>,
+    ): DiscoverPage {
+        val response = parseJson<DiscoverResponse>(request(path, params))
         return DiscoverPage(
             results = response.results.orEmpty().asSequence()
                 .filter { it.usable }

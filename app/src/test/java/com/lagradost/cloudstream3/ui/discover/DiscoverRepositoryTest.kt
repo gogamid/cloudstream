@@ -14,6 +14,55 @@ import java.io.IOException
 
 class DiscoverRepositoryTest {
     @Test
+    fun `movie title search pages in TMDB order without browse filters`() = runBlocking {
+        val repository = DiscoverRepository { path, params ->
+            assertEquals("/search/movie", path)
+            assertEquals(
+                mapOf(
+                    "query" to "Amélie & Friends", "language" to "en-US",
+                    "include_adult" to "false", "page" to "2",
+                ),
+                params,
+            )
+            """{"total_pages":3,"results":[
+                {"id":8,"title":"Unrated result","original_language":"fr"},
+                {"id":3,"title":"Second result","vote_average":9.0},
+                {"id":8,"title":"Duplicate"},
+                {"id":2,"title":"Adult","adult":true},
+                {"id":0,"title":"Invalid"}
+            ]}"""
+        }
+        val page = repository.search(DiscoverMediaType.MOVIES, " Amélie & Friends ", 2)
+        assertEquals(listOf("Unrated result", "Second result"), page.results.map { it.name })
+        assertEquals("https://www.themoviedb.org/movie/8", page.results.first().url)
+        assertTrue(page.hasMore)
+    }
+
+    @Test
+    fun `series title search uses series cards and respects the TMDB page limit`() = runBlocking {
+        val repository = DiscoverRepository { path, params ->
+            assertEquals("/search/tv", path)
+            assertEquals("500", params["page"])
+            """{"total_pages":600,"results":[
+                {"id":7,"name":"Series","first_air_date":"2010-01-01","poster_path":"/tv.jpg"}
+            ]}"""
+        }
+        val page = repository.search(DiscoverMediaType.SERIES, "Series", 500)
+        val card = page.results.single() as TvSeriesSearchResponse
+        assertEquals("https://www.themoviedb.org/tv/7", card.url)
+        assertEquals(2010, card.year)
+        assertEquals("https://image.tmdb.org/t/p/w500/tv.jpg", card.posterUrl)
+        assertFalse(page.hasMore)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `blank title search never makes a request`() = runBlocking {
+        DiscoverRepository { _, _ -> error("Blank queries must not hit TMDB") }
+            .search(DiscoverMediaType.MOVIES, "  ", 1)
+        Unit
+    }
+
+    @Test
     fun `movie discovery combines rating genre year sort and requested page on the server`() = runBlocking {
         val repository = DiscoverRepository { path, params ->
             assertEquals("/discover/movie", path)

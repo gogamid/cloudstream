@@ -22,6 +22,20 @@
             android:paddingEnd="8dp"
             android:paddingBottom="8dp">
             <com.google.android.material.chip.Chip
+                android:id="@+id/discover_search"
+                style="@style/ChipFilled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:checkable="false"
+                android:ellipsize="end"
+                android:maxWidth="200dp"
+                android:nextFocusDown="@id/discover_results"
+                android:text="@string/discover_search_title"
+                app:chipIcon="@drawable/search_icon"
+                app:chipIconTint="?attr/textColor"
+                app:ensureMinTouchTargetSize="false" />
+            <com.google.android.material.chip.Chip
                 android:id="@+id/filter_type"
                 style="@style/ChipFilled"
                 android:layout_width="wrap_content"
@@ -31,6 +45,16 @@
                 android:nextFocusDown="@id/discover_results"
                 app:ensureMinTouchTargetSize="false"
                 tools:text="Movies ▾" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/discover_clear_search"
+                style="@style/ChipFilled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="false"
+                android:nextFocusDown="@id/discover_results"
+                android:text="@string/discover_clear_search"
+                android:visibility="gone"
+                app:ensureMinTouchTargetSize="false" />
             <com.google.android.material.chip.Chip
                 android:id="@+id/filter_language"
                 style="@style/ChipFilled"
