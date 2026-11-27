@@ -56,6 +56,7 @@ class ForkTvNativeInputTest {
 
     private fun awaitKeyboard(scenario: ActivityScenario<ForkComposeInputTestActivity>, expected: Boolean) {
         val deadline = SystemClock.uptimeMillis() + 15_000
+        var hiddenSince: Long? = null
         while (SystemClock.uptimeMillis() < deadline) {
             var visible = false
             scenario.onActivity {
@@ -63,7 +64,19 @@ class ForkTvNativeInputTest {
                     ViewCompat.getRootWindowInsets(view)?.isVisible(WindowInsetsCompat.Type.ime())
                 } == true
             }
-            if (visible == expected) return
+            if (expected && visible) return
+            if (!expected) {
+                // Insets can report hidden before the Android 12 IME finishes
+                // dispatching Back. Reopening during that transition can be
+                // swallowed by the still-closing keyboard.
+                if (visible) {
+                    hiddenSince = null
+                } else {
+                    val now = SystemClock.uptimeMillis()
+                    val since = hiddenSince ?: now.also { hiddenSince = it }
+                    if (now - since >= 500) return
+                }
+            }
             SystemClock.sleep(100)
         }
         fail("Native search keyboard visibility did not become $expected")
