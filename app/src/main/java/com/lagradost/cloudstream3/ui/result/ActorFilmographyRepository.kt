@@ -69,8 +69,8 @@ internal class ActorFilmographyRepository(
         return parseJson<ActorDetails>(request("/person/$id", mapOf("language" to "en-US")))
     }
 
-    suspend fun load(actor: Actor): List<SearchResponse> {
-        val id = resolvePersonId(actor) ?: return emptyList()
+    suspend fun load(actor: Actor, tmdbPersonId: Int? = null): List<SearchResponse> {
+        val id = tmdbPersonId?.takeIf { it > 0 } ?: resolvePersonId(actor) ?: return emptyList()
         val credits = parseJson<TmdbCombinedCredits>(
             request("/person/$id/combined_credits", mapOf("language" to "en-US"))
         ).cast.orEmpty()

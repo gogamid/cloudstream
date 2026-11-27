@@ -14,6 +14,16 @@ import java.io.IOException
 
 class ActorFilmographyRepositoryTest {
     @Test
+    fun `known cast ID loads exact combined credits without a person search`() = runBlocking {
+        val repository = ActorFilmographyRepository { path, params ->
+            assertEquals("/person/42/combined_credits", path)
+            assertEquals(mapOf("language" to "en-US"), params)
+            """{"cast":[]}"""
+        }
+        assertTrue(repository.load(Actor("A shared name"), tmdbPersonId = 42).isEmpty())
+    }
+
+    @Test
     fun `profile image selects the matching person despite image size and query parameters`() = runBlocking {
         val calls = mutableListOf<String>()
         val repository = ActorFilmographyRepository { path, params ->

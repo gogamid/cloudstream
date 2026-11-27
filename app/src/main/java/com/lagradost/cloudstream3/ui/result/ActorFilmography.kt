@@ -50,8 +50,9 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
         private const val TAG = "actor_filmography"
         private const val ACTOR_NAME = "actor_name"
         private const val ACTOR_IMAGE = "actor_image"
+        private const val TMDB_PERSON_ID = "tmdb_person_id"
 
-        fun show(context: Context, actor: Actor) {
+        fun show(context: Context, actor: Actor, tmdbPersonId: Int? = null) {
             val manager = (context.getActivity() as? FragmentActivity)?.supportFragmentManager
                 ?: return
             if (manager.isStateSaved || manager.findFragmentByTag(TAG) != null) return
@@ -60,6 +61,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
                 arguments = Bundle().apply {
                     putString(ACTOR_NAME, actor.name)
                     putString(ACTOR_IMAGE, actor.image)
+                    tmdbPersonId?.let { putInt(TMDB_PERSON_ID, it) }
                 }
             }.showNow(manager, TAG)
         }
@@ -434,6 +436,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
             name = arguments?.getString(ACTOR_NAME).orEmpty(),
             image = arguments?.getString(ACTOR_IMAGE),
         )
+        val tmdbPersonId = arguments?.getInt(TMDB_PERSON_ID)?.takeIf { it > 0 }
         loadJob?.cancel()
         hasLoaded = false
         allCredits = emptyList()
@@ -446,7 +449,7 @@ class ActorFilmography : BaseBottomSheetDialogFragment<ActorFilmographyBinding>(
 
         loadJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val credits = withContext(Dispatchers.IO) { repository.load(actor) }
+                val credits = withContext(Dispatchers.IO) { repository.load(actor, tmdbPersonId) }
                 allCredits = credits
                 availableGenres = (credits.flatMap { it.genres.orEmpty() } + selectedGenres).distinct().sorted()
                 // Keep only still-valid genre selections

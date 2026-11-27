@@ -50,6 +50,7 @@
     <string name="discover_preview_loading">Loading synopsis…</string>
     <string name="discover_preview_no_overview">No synopsis available.</string>
     <string name="discover_preview_error">Could not load synopsis. You can still save this title or search providers.</string>
+    <string name="discover_preview_cast">Cast</string>
     <string name="discover_preview_runtime">%1$d min</string>
     <string name="discover_preview_seasons">Seasons: %1$d</string>
     <string name="discover_completed_add">Mark as completed</string>

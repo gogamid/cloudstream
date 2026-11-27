@@ -16,7 +16,9 @@ internal object TmdbMetadata {
     // The application key already used by TmdbProvider and actor filmography.
     private const val API_KEY = "e6333b32409e02a4a6eba6fb7ff866bb"
     private const val API_URL = "https://api.themoviedb.org/3"
-    const val IMAGE_URL = "https://image.tmdb.org/t/p/w500"
+    private const val IMAGE_BASE = "https://image.tmdb.org/t/p"
+    const val IMAGE_URL = "$IMAGE_BASE/w500"
+    const val PROFILE_IMAGE_URL = "$IMAGE_BASE/w185"
 
     val cards = object : MainAPI() {
         override var name = "TMDB"

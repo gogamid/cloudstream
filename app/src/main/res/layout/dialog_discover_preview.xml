@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="16dp"
-    android:background="?attr/primaryGrayBackground"
-    android:orientation="vertical">
+    android:background="?attr/primaryGrayBackground">
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:padding="16dp">
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="180dp"
@@ -17,7 +20,7 @@
             android:layout_marginEnd="16dp"
             android:importantForAccessibility="no"
             android:scaleType="centerCrop" />
-        <ScrollView
+        <androidx.core.widget.NestedScrollView
             android:id="@+id/preview_scroll"
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -41,8 +44,26 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
-        </ScrollView>
+        </androidx.core.widget.NestedScrollView>
     </LinearLayout>
+    <TextView
+        android:id="@+id/preview_cast_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/discover_preview_cast"
+        android:textColor="?attr/textColor"
+        android:textStyle="bold"
+        android:visibility="gone" />
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/preview_cast"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:descendantFocusability="afterDescendants"
+        android:focusable="true"
+        android:nextFocusUp="@id/preview_scroll"
+        android:nextFocusDown="@id/preview_watchlist"
+        android:visibility="gone" />
     <com.google.android.material.chip.Chip
         android:id="@+id/preview_watchlist"
         style="@style/ChipFilled"
@@ -79,4 +100,5 @@
         android:nextFocusUp="@id/preview_ignore"
         android:text="@string/discover_search_providers"
         app:ensureMinTouchTargetSize="false" />
-</LinearLayout>
+  </LinearLayout>
+</androidx.core.widget.NestedScrollView>
