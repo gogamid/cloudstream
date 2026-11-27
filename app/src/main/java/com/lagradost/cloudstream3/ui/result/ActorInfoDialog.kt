@@ -25,13 +25,16 @@ import kotlinx.coroutines.withContext
 class ActorInfoDialog : DialogFragment() {
     companion object {
         private const val TAG = "actor_info"
-        fun show(context: Context, actor: Actor) {
+        private const val TMDB_PERSON_ID = "tmdb_person_id"
+
+        fun show(context: Context, actor: Actor, tmdbPersonId: Int? = null) {
             val manager = (context.getActivity() as? FragmentActivity)?.supportFragmentManager ?: return
             if (manager.isStateSaved || manager.findFragmentByTag(TAG) != null) return
             ActorInfoDialog().apply {
                 arguments = Bundle().apply {
                     putString("name", actor.name)
                     putString("image", actor.image)
+                    tmdbPersonId?.let { putInt(TMDB_PERSON_ID, it) }
                 }
             }.show(manager, TAG)
         }
@@ -42,6 +45,7 @@ class ActorInfoDialog : DialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val name = arguments?.getString("name").orEmpty()
         val image = arguments?.getString("image")
+        val tmdbPersonId = arguments?.getInt(TMDB_PERSON_ID)?.takeIf { it > 0 }
         val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
         val binding = DialogActorInfoBinding.inflate(LayoutInflater.from(builder.context))
         if (isLayout(PHONE)) binding.actorInfoText.textSize = 15f
@@ -52,7 +56,7 @@ class ActorInfoDialog : DialogFragment() {
         job = lifecycleScope.launch {
             try {
                 val details = withContext(Dispatchers.IO) {
-                    ActorFilmographyRepository().details(Actor(name, image))
+                    ActorFilmographyRepository().details(Actor(name, image), tmdbPersonId)
                 }
                 if (details == null) {
                     binding.actorInfoText.setText(R.string.actor_info_missing)

@@ -64,8 +64,8 @@ internal class ActorFilmographyRepository(
         return person?.id
     }
 
-    suspend fun details(actor: Actor): ActorDetails? {
-        val id = resolvePersonId(actor) ?: return null
+    suspend fun details(actor: Actor, tmdbPersonId: Int? = null): ActorDetails? {
+        val id = tmdbPersonId?.takeIf { it > 0 } ?: resolvePersonId(actor) ?: return null
         return parseJson<ActorDetails>(request("/person/$id", mapOf("language" to "en-US")))
     }
 

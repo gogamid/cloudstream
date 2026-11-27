@@ -10,6 +10,17 @@ import java.time.LocalDate
 
 class ActorDetailsTest {
     @Test
+    fun `known cast ID opens exact actor info without a person search`() = runBlocking {
+        val repository = ActorFilmographyRepository { path, params ->
+            assertEquals("/person/42", path)
+            assertEquals(mapOf("language" to "en-US"), params)
+            """{"name":"Same Name","biography":"The selected actor's biography"}"""
+        }
+        val result = repository.details(Actor("Same Name"), tmdbPersonId = 42)
+        assertEquals("The selected actor's biography", result?.biography)
+    }
+
+    @Test
     fun `age respects birthday and death date`() {
         val actor = ActorDetails(birthday = "1974-11-11")
         assertEquals(51, actor.age(LocalDate.of(2026, 11, 10)))

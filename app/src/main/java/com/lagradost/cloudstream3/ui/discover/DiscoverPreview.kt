@@ -17,6 +17,7 @@ import com.lagradost.cloudstream3.databinding.DiscoverCastItemBinding
 import com.lagradost.cloudstream3.syncproviders.SyncAPI
 import com.lagradost.cloudstream3.ui.quicksearch.QuickSearchFragment
 import com.lagradost.cloudstream3.ui.result.ActorFilmography
+import com.lagradost.cloudstream3.ui.result.ActorInfoDialog
 import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.utils.ImageLoader.loadImage
@@ -95,11 +96,20 @@ internal object DiscoverPreview {
                 if (cast.isNotEmpty()) {
                     binding.previewCast.apply {
                         layoutManager = LinearLayoutManager(context, RecyclerView.HORIZONTAL, false)
-                        adapter = CastAdapter(cast) { member ->
-                            val activity = fragment.activity ?: return@CastAdapter
-                            dialog.dismiss()
-                            ActorFilmography.show(activity, member.toActor(), member.id)
-                        }
+                        adapter = CastAdapter(
+                            cast,
+                            select = { member ->
+                                fragment.activity?.let { activity ->
+                                    dialog.dismiss()
+                                    ActorFilmography.show(activity, member.toActor(), member.id)
+                                }
+                            },
+                            showInfo = { member ->
+                                fragment.activity?.let { activity ->
+                                    ActorInfoDialog.show(activity, member.toActor(), member.id)
+                                }
+                            },
+                        )
                         isVisible = true
                     }
                     binding.previewCastLabel.isVisible = true
@@ -118,6 +128,7 @@ internal object DiscoverPreview {
     private class CastAdapter(
         private val cast: List<DiscoverPreviewRepository.CastMember>,
         private val select: (DiscoverPreviewRepository.CastMember) -> Unit,
+        private val showInfo: (DiscoverPreviewRepository.CastMember) -> Unit,
     ) : RecyclerView.Adapter<CastAdapter.Holder>() {
         class Holder(val binding: DiscoverCastItemBinding) : RecyclerView.ViewHolder(binding.root)
 
@@ -145,6 +156,10 @@ internal object DiscoverPreview {
             castCharacter.text = member.character?.trim()
             castCharacter.isVisible = !member.character.isNullOrBlank()
             root.setOnClickListener { select(member) }
+            root.setOnLongClickListener {
+                showInfo(member)
+                true
+            }
         }
     }
 }
